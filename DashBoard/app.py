@@ -379,7 +379,7 @@ with c_hot:
             st.dataframe(d.busiest_region_by_year(s_hist), hide_index=True, height=205,
                          column_config={"Year": st.column_config.NumberColumn(format="%d")})
     else:
-        with card("hot", f"{short_name} comparison"):
+        with card("hot", f"{short_name} vs. Global"):
             st.dataframe(d.region_rank_by_year(s_hist_all, region_sel), hide_index=True, height=205,
                          column_config={"Year": st.column_config.NumberColumn(format="%d"),
                                         "Share of global": st.column_config.ProgressColumn(
