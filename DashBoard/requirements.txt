@@ -1,0 +1,8 @@
+streamlit>=1.40
+pandas>=2.1
+numpy
+plotly>=5.20
+folium>=0.17
+streamlit-folium>=0.22
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
