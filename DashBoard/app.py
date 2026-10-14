@@ -328,7 +328,7 @@ with right:
 
 # ── Row: when to see each species (plain language) ───────────────────────────
 sp_rank = s_hist["species_name"].value_counts()
-c_best, c_year, c_peak = st.columns([4, 3.6, 2.4])
+c_best, c_year, c_group= st.columns([4, 3.6,2.4])
 if sp_rank.empty:
     with c_best:
         st.info("No sightings here yet. Pick another region or widen the filters.")
@@ -369,16 +369,7 @@ else:
             fig.update_xaxes(categoryorder="array", categoryarray=d.MONTHS)
             st.plotly_chart(style(fig, h=228, legend=True), config=PLOT_CFG, key="season_vs")
 
-    with c_peak:
-        with card("shift", "Busiest month each year"):
-            st.dataframe(d.peak_month_by_year(sd, data_start, data_end), hide_index=True, height=240,
-                         column_config={"Sightings that year": None})
-
-# ── Row: hotspots + encounters ───────────────────────────────────────────────
-c_group=st.columns([2.4])
-
-
-with c_group:
+    with c_group:
     with card("group", "Typical group size", "Median animals per sighting"):
         grp = (s_scope.groupby("species_name")["animals_total"].median().dropna().sort_values().tail(8)
                .rename_axis("Species").reset_index(name="Median"))
@@ -387,6 +378,7 @@ with c_group:
         else:
             fig = px.bar(grp, x="Median", y="Species", orientation="h", color_discrete_sequence=[SEAFOAM])
             st.plotly_chart(style(fig, h=200), config=PLOT_CFG, key="group_size")
+
 
 
 # ── Trim the table column menu to: sort, pin, hide ───────────────────────────
