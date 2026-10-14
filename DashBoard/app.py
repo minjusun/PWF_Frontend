@@ -48,12 +48,13 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .snap b {display:block; color:#0E4D64; font-size:1.05rem; font-weight:600; line-height:1.25;
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] {display:none;}
-/* Deep-ocean header band: Midnight Space → Forest Biome → Bright Nautilus → Faded Coastal Slate, wave edge */
+/* Underwater header band: deep blue at the surface, brighter mid-water, layered waves into the page */
 [data-testid="stApp"] {
   background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 120' preserveAspectRatio='none'><path fill='%237494AC' fill-opacity='0.35' d='M0,64 C240,112 480,8 720,40 C960,72 1200,120 1440,56 L1440,120 L0,120 Z'/><path fill='%23EEF4F5' d='M0,88 C260,40 520,120 760,92 C1000,64 1220,24 1440,72 L1440,120 L0,120 Z'/></svg>") no-repeat center 250px / 100% 110px,
-    radial-gradient(ellipse 60% 120% at 85% 0%, rgba(116,148,172,0.35), transparent 70%) no-repeat top / 100% 340px,
-    linear-gradient(165deg, #0C1C2C 0%, #1A4C47 45%, #1E5C6C 75%, #4C758C 100%) no-repeat top / 100% 340px,
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 200' preserveAspectRatio='none'><path fill='%233E93C2' fill-opacity='0.45' d='M0,70 C180,30 360,120 600,80 C840,40 1080,10 1260,60 C1350,85 1400,90 1440,80 L1440,200 L0,200 Z'/><path fill='%237DB7D9' fill-opacity='0.45' d='M0,110 C220,150 420,70 660,105 C900,140 1120,170 1440,110 L1440,200 L0,200 Z'/><path fill='%23B9D9EC' fill-opacity='0.55' d='M0,140 C260,110 500,175 760,150 C1000,128 1240,110 1440,138 L1440,200 L0,200 Z'/><path fill='%23EEF4F5' d='M0,165 C280,140 540,195 800,178 C1040,162 1260,150 1440,168 L1440,200 L0,200 Z'/></svg>") no-repeat center 300px / 100% 200px,
+    radial-gradient(ellipse 45% 70% at 70% 0%, rgba(255,255,255,0.16), transparent 70%) no-repeat top / 100% 480px,
+    radial-gradient(ellipse 35% 55% at 15% 10%, rgba(120,190,230,0.18), transparent 70%) no-repeat top / 100% 480px,
+    linear-gradient(180deg, #06345A 0%, #0A4D7F 22%, #0A5E90 45%, #0A6898 65%, #2A86B5 85%, #5FA8CF 100%) no-repeat top / 100% 480px,
     #EEF4F5;
 }
 [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stHeader"] {background: transparent;}
