@@ -2,7 +2,9 @@
 Whale & Dolphin Tracker Dashboard — Streamlit dashboard
 Run:  streamlit run app.py
 """
+import base64
 import html
+import os
 
 import folium
 import numpy as np
@@ -56,7 +58,10 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 }
 [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stHeader"] {background: transparent;}
 [data-testid="stToolbar"] button, [data-testid="stToolbar"] a, [data-testid="stToolbar"] span {color: #E6EEF3 !important;}
-h1 {color: #FFFFFF !important;}
+.brand {display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+.brand-logo {height:42px; width:auto; display:block;}
+.brand-divider {width:1px; height:30px; background:rgba(255,255,255,0.35);}
+.brand-title {color:#FFFFFF; font-size:1.35rem; font-weight:700; line-height:1.2;}
 .scope {color: #B9CBD8 !important;}
 .st-key-header [data-testid="stWidgetLabel"] p {color: #D7E3EC !important;}
 
@@ -97,6 +102,19 @@ def sparkline(series, color=TEAL):
     fig.update_xaxes(visible=False)
     fig.update_yaxes(visible=False, rangemode="tozero")
     return fig
+
+
+def logo_html():
+    """Logo from logo.svg or logo.png next to this file (white version suits the dark header)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for name, mime in (("logo.svg", "image/svg+xml"), ("logo.png", "image/png")):
+        path = os.path.join(here, name)
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode()
+            return (f"<img class='brand-logo' src='data:{mime};base64,{b64}' alt='Pacific Whale Foundation'>"
+                    "<span class='brand-divider'></span>")
+    return ""
 
 
 def snapshot(items):
@@ -150,9 +168,11 @@ def go_global():
 
 # ── Header: title + filters ──────────────────────────────────────────────────
 header_box = st.container(key="header")
-h1, h2, h3, h4 = header_box.columns([3.4, 1.3, 2.4, 1.7], vertical_alignment="bottom")
+h1, h2, h3, h4 = header_box.columns([4.4, 1.3, 2.4, 1.7], vertical_alignment="bottom")
 with h1:
-    st.title("Whale & Dolphin Tracker Dashboard")
+    st.markdown(f"<div class='brand'>{logo_html()}"
+                "<div class='brand-title'>Whale &amp; Dolphin Tracker Dashboard</div></div>",
+                unsafe_allow_html=True)
     scope_slot = st.empty()
 years = sorted(s_all["year"].unique(), reverse=True)
 window = h2.selectbox("Period", ["Last 12 months", *[str(y) for y in years], "All time"])
