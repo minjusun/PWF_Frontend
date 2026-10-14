@@ -245,7 +245,7 @@ with center:
             m.fit_bounds([[y0, x0], [y1, x1]], padding=(20, 20))
 
         map_key = f"map_{region_sel or GLOBAL}"
-        map_state = st_folium(m, key=map_key, height=420, use_container_width=True,
+        map_state = st_folium(m, key=map_key, height=510, use_container_width=True,
                               returned_objects=["last_active_drawing"])
         clicked = ((map_state or {}).get("last_active_drawing") or {}).get("properties", {}).get("region")
         if clicked and ss.get("last_click") != (map_key, clicked):
