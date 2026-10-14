@@ -377,6 +377,68 @@ else:
                 st.plotly_chart(style(fig, h=200), config=PLOT_CFG, key="group_size")
 
 
+# ── More charts (hidden until the button is pressed) ─────────────────────────
+def toggle_more():
+    ss.show_more = not ss.get("show_more", False)
+
+
+_, mid, _ = st.columns([4, 2, 4])
+mid.button("Hide extra charts" if ss.get("show_more") else "Show more charts", on_click=toggle_more,
+           use_container_width=True, key="more_btn")
+
+if ss.get("show_more"):
+    c_hot, c_peak, c_calf, c_boat = st.columns([3.2, 2.4, 2.4, 2])
+    with c_hot:
+        if is_global:
+            with card("hot", "Busiest region by year"):
+                st.dataframe(d.busiest_region_by_year(s_hist), hide_index=True, height=230,
+                             column_config={"Year": st.column_config.NumberColumn(format="%d")})
+        else:
+            with card("hot", f"{short_name} vs. Global"):
+                st.dataframe(d.region_rank_by_year(s_hist_all, region_sel), hide_index=True, height=230,
+                             column_config={"Year": st.column_config.NumberColumn(format="%d"),
+                                            "Share of global": st.column_config.ProgressColumn(
+                                                format="percent", min_value=0, max_value=1)})
+
+    with c_peak:
+        with card("shift", "Busiest month each year", None if sp_rank.empty else sel):
+            if sp_rank.empty:
+                st.caption("No sightings here yet.")
+            else:
+                st.dataframe(d.peak_month_by_year(sd, data_start, data_end), hide_index=True, height=230,
+                             column_config={"Sightings that year": None})
+
+    with c_calf:
+        with card("calf", "Calves by month", "Calves counted in a typical month"):
+            calf_counts = s_hist.groupby("species_name")["animals_calf"].sum().sort_values(ascending=False)
+            calf_counts = calf_counts[calf_counts > 0]
+            if calf_counts.empty:
+                st.caption("No calves have been recorded here yet.")
+            else:
+                calf_sp = st.selectbox("Species", calf_counts.index.tolist(), key="calf_species",
+                                       label_visibility="collapsed",
+                                       help="Only species with calves recorded are listed.")
+                tc_ = d.typical_calves(s_hist[s_hist["species_name"] == calf_sp], s_all["ts"].min(), now)
+                best = tc_.loc[tc_["Calves"].idxmax(), "Month"]
+                st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>Most {html.escape(calf_sp.lower())} "
+                            f"calves are spotted in <b>{best}</b>.</div>", unsafe_allow_html=True)
+                fig = px.bar(tc_, x="Month", y="Calves", color_discrete_sequence=[SAND],
+                             category_orders={"Month": d.MONTHS})
+                fig.update_traces(hovertemplate="%{x}: about %{y:.0f} calves in a typical year<extra></extra>")
+                fig.update_xaxes(tickangle=0, tickfont_size=9)
+                st.plotly_chart(style(fig, h=170), config=PLOT_CFG, key="calf_chart")
+
+    with c_boat:
+        with card("boats", "Most active boats"):
+            boats = s_scope["boat_name"].value_counts().head(6).rename_axis("Boat").reset_index(name="Sightings")
+            if boats.empty:
+                st.caption("No boat names recorded.")
+            else:
+                fig = px.bar(boats.iloc[::-1], x="Sightings", y="Boat", orientation="h",
+                             color_discrete_sequence=[SAND])
+                st.plotly_chart(style(fig, h=230), config=PLOT_CFG, key="boats_chart")
+
+
 # ── Trim the table column menu to: sort, pin, hide ───────────────────────────
 # Streamlit has no option for this, so a tiny script hides the other menu rows
 # (column name/copy row, Format, Autosize) whenever a column menu opens.
