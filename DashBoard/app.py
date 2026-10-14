@@ -29,7 +29,7 @@ PLOT_CFG = {"displayModeBar": False}
 st.markdown("""
 <style>
 html {font-size: 14px;}
-.block-container {padding: 3.6rem 1.4rem 1.5rem; max-width: 100%;}
+.block-container {padding: 2.6rem 1.4rem 1.5rem; max-width: 100%;}
 [data-testid="stVerticalBlock"] {gap: 0.55rem;}
 [class*="st-key-card"] {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; padding:14px 16px 14px;}
 [class*="st-key-card"] [data-testid="stVerticalBlock"] {gap: 0.5rem;}
@@ -58,7 +58,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 }
 [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stHeader"] {background: transparent;}
 [data-testid="stToolbar"] button, [data-testid="stToolbar"] a, [data-testid="stToolbar"] span {color: #E6EEF3 !important;}
-.brand {display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+.brand {display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:0 0 18px;}
+.st-key-header {margin-bottom: 6px;}
 .brand-logo {height:42px; width:auto; display:block;}
 .brand-divider {width:1px; height:30px; background:rgba(255,255,255,0.35);}
 .brand-title {color:#FFFFFF; font-size:1.35rem; font-weight:700; line-height:1.2;}
