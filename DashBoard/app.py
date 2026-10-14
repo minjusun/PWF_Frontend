@@ -62,7 +62,6 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .brand-logo {height:42px; width:auto; display:block;}
 .brand-divider {width:1px; height:30px; background:rgba(255,255,255,0.35);}
 .brand-title {color:#FFFFFF; font-size:1.35rem; font-weight:700; line-height:1.2;}
-.scope {color: #B9CBD8 !important;}
 .st-key-header [data-testid="stWidgetLabel"] p {color: #D7E3EC !important;}
 
 .st-key-more_btn button {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; min-height:2.4rem;}
@@ -173,7 +172,6 @@ with h1:
     st.markdown(f"<div class='brand'>{logo_html()}"
                 "<div class='brand-title'>Whale &amp; Dolphin Tracker Dashboard</div></div>",
                 unsafe_allow_html=True)
-    scope_slot = st.empty()
 years = sorted(s_all["year"].unique(), reverse=True)
 window = h2.selectbox("Period", ["Last 12 months", *[str(y) for y in years], "All time"])
 sp_filter = h3.multiselect("Species", s_all["species_name"].value_counts().index.tolist(), placeholder="All species")
@@ -265,10 +263,6 @@ s_scope, t_scope = d.slice_data(s_reg, t, start, end, tracks_follow_sightings=fo
 s_hist, t_hist = d.slice_data(s_reg, t, hist_start, hist_end, tracks_follow_sightings=follow_r)
 s_hist_all = d.slice_data(s, t, hist_start, hist_end)[0]
 
-period_txt = "all time" if window == "All time" else window.lower()
-source_txt = "Live data" if db_url() else "Mock data"
-scope_slot.markdown(f"<p class='scope'>{html.escape(short_name)} &middot; {period_txt} &middot; {source_txt}</p>",
-                    unsafe_allow_html=True)
 
 # ── KPI strip ────────────────────────────────────────────────────────────────
 cur = d.kpis(s_scope, t_scope)
