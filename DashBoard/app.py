@@ -370,14 +370,14 @@ else:
             st.plotly_chart(style(fig, h=228, legend=True), config=PLOT_CFG, key="season_vs")
 
     with c_group:
-    with card("group", "Typical group size", "Median animals per sighting"):
-        grp = (s_scope.groupby("species_name")["animals_total"].median().dropna().sort_values().tail(8)
-               .rename_axis("Species").reset_index(name="Median"))
-        if grp.empty:
-            st.caption("No group counts recorded.")
-        else:
-            fig = px.bar(grp, x="Median", y="Species", orientation="h", color_discrete_sequence=[SEAFOAM])
-            st.plotly_chart(style(fig, h=200), config=PLOT_CFG, key="group_size")
+        with card("group", "Typical group size", "Median animals per sighting"):
+            grp = (s_scope.groupby("species_name")["animals_total"].median().dropna().sort_values().tail(8)
+                .rename_axis("Species").reset_index(name="Median"))
+            if grp.empty:
+                st.caption("No group counts recorded.")
+            else:
+                fig = px.bar(grp, x="Median", y="Species", orientation="h", color_discrete_sequence=[SEAFOAM])
+                st.plotly_chart(style(fig, h=200), config=PLOT_CFG, key="group_size")
 
 
 
