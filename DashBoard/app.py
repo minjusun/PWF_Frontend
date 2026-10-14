@@ -5,6 +5,7 @@ Run:  streamlit run app.py
 import base64
 import html
 import os
+import re
 
 import folium
 import numpy as np
@@ -59,11 +60,15 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 }
 [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stHeader"] {background: transparent;}
 [data-testid="stToolbar"] button, [data-testid="stToolbar"] a, [data-testid="stToolbar"] span {color: #E6EEF3 !important;}
-.brand {display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:0 0 18px;}
+.brand {display:flex; align-items:center; gap:14px; flex-wrap:nowrap; padding:0 0 18px; min-width:0;}
 .st-key-header {margin-bottom: 6px;}
 .brand-logo {height:42px; width:auto; display:block;}
 .brand-divider {width:1px; height:30px; background:rgba(255,255,255,0.35);}
-.brand-title {color:#FFFFFF; font-size:1.35rem; font-weight:700; line-height:1.2;}
+.brand-logo, .brand-divider {flex-shrink:0;}
+.summary {color:#D7E3EC; font-size:0.92rem; line-height:1.4; white-space:nowrap; overflow:hidden;
+          text-overflow:ellipsis; min-width:0;}
+.summary b {color:#FFFFFF; font-weight:600;}
+.summary-dot {margin:0 9px; color:rgba(255,255,255,0.45);}
 .st-key-header [data-testid="stWidgetLabel"] p {color: #D7E3EC !important;}
 
 .st-key-more_btn button {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; min-height:2.4rem;}
@@ -169,11 +174,9 @@ def go_global():
 
 # ── Header: title + filters ──────────────────────────────────────────────────
 header_box = st.container(key="header")
-h1, h2, h3, h4 = header_box.columns([4.4, 1.3, 2.4, 1.7], vertical_alignment="bottom")
+h1, h2, h3, h4 = header_box.columns([5.6, 1.3, 2.2, 1.6], vertical_alignment="bottom")
 with h1:
-    st.markdown(f"<div class='brand'>{logo_html()}"
-                "<div class='brand-title'>Whale &amp; Dolphin Tracker Dashboard</div></div>",
-                unsafe_allow_html=True)
+    brand_slot = st.empty()
 years = sorted(s_all["year"].unique(), reverse=True)
 window = h2.selectbox("Period", ["Last 12 months", *[str(y) for y in years], "All time"])
 sp_filter = h3.multiselect("Species", s_all["species_name"].value_counts().index.tolist(), placeholder="All species")
@@ -265,6 +268,30 @@ s_scope, t_scope = d.slice_data(s_reg, t, start, end, tracks_follow_sightings=fo
 s_hist, t_hist = d.slice_data(s_reg, t, hist_start, hist_end, tracks_follow_sightings=follow_r)
 s_hist_all = d.slice_data(s, t, hist_start, hist_end)[0]
 
+# ── Header: logo + one-line summary (replaces the old Global view box) ───────
+rc = region_counts.drop(R.OPEN_OCEAN, errors="ignore")
+esc = html.escape
+if is_global:
+    top_r = rc.index[0].split(",")[0] if len(rc) else "—"
+    parts = ["<b>Global</b>",
+             f"<b>{len(rc):,}</b> regions with sightings",
+             f"Top region <b>{esc(top_r)}</b>",
+             f"<b>{t_period['track_id'].nunique():,}</b> total trips",
+             f"<b>{s_period['creator'].nunique():,}</b> contributors"]
+else:
+    rank = (list(rc.index).index(region_sel) + 1) if region_sel in rc.index else None
+    first = s_hist["ts"].min()
+    top_sp = s_scope["species_name"].mode().iat[0] if len(s_scope) else "—"
+    parts = [f"<b>{esc(short_name)}</b>",
+             f"<b>{t_scope['track_id'].nunique():,}</b> total trips",
+             f"Ranked <b>#{rank}</b> of {len(rc)}" if rank else "Not ranked",
+             f"Top species <b>{esc(top_sp)}</b>",
+             f"First sighting <b>{first.strftime('%b %Y') if pd.notna(first) else '—'}</b>"]
+summary = "<span class='summary-dot'>·</span>".join(parts)
+tooltip = esc(re.sub(r"<[^>]+>", "", " · ".join(parts)))   # plain text shown on hover
+brand_slot.markdown(f"<div class='brand'>{logo_html()}<div class='summary' title='{tooltip}'>"
+                    f"{summary}</div></div>", unsafe_allow_html=True)
+
 
 # ── KPI strip ────────────────────────────────────────────────────────────────
 cur = d.kpis(s_scope, t_scope)
@@ -320,26 +347,9 @@ with left:
 
 # ── Right of map: region snapshot, top species, species list ─────────────────
 with right:
-    with card("snap", "Global view" if is_global else f"{short_name} at a glance"):
-        rc = region_counts.drop(R.OPEN_OCEAN, errors="ignore")
-        if is_global:
-            top_r = rc.index[0].split(",")[0] if len(rc) else "—"
-            snapshot([("Regions with sightings", f"{len(rc):,}"),
-                      ("Top region", top_r),
-                      ("Top region's share", f"{rc.iloc[0] / max(1, len(s_period)):.0%}" if len(rc) else "—"),
-                      ("Contributors", f"{s_period['creator'].nunique():,}")])
-        else:
-            here = int(region_counts.get(region_sel, 0))
-            rank = (list(rc.index).index(region_sel) + 1) if region_sel in rc.index else None
-            first = s_hist["ts"].min()
-            snapshot([("Share of global sightings", f"{here / max(1, len(s_period)):.0%}"),
-                      ("Global rank", f"#{rank} of {len(rc)}" if rank else "—"),
-                      ("Top species here", s_scope["species_name"].mode().iat[0] if len(s_scope) else "—"),
-                      ("First sighting", first.strftime("%b %Y") if pd.notna(first) else "—")])
-
     with card("species_list", f"Species spotted ({s_scope['species_code'].nunique()})"):
         sp_tab = d.species_table(s_scope, start, end)
-        st.dataframe(sp_tab, hide_index=True, height=360, column_config={
+        st.dataframe(sp_tab, hide_index=True, height=535, column_config={
             "Sightings": st.column_config.ProgressColumn(
                 format="%d", max_value=int(max(1, sp_tab["Sightings"].max() if len(sp_tab) else 1))),
             "Trend": st.column_config.AreaChartColumn("Trend (per month)", y_min=0, help="Sightings per month across the selected period"),
