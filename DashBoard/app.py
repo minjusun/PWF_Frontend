@@ -390,7 +390,7 @@ st.button("", key="more_btn", on_click=toggle_more, use_container_width=True,
           help="Hide extra charts" if ss.get("show_more") else "Show more charts")
 
 if ss.get("show_more"):
-    c_hot, c_peak, c_calf, c_boat = st.columns([3.2, 2.4, 2.4, 2])
+    c_hot, c_peak, c_calf= st.columns([3.2, 2.4, 2.4])
     with c_hot:
         if is_global:
             with card("hot", "Busiest region by year"):
@@ -431,15 +431,6 @@ if ss.get("show_more"):
                 fig.update_xaxes(tickangle=0, tickfont_size=9)
                 st.plotly_chart(style(fig, h=170), config=PLOT_CFG, key="calf_chart")
 
-    with c_boat:
-        with card("boats", "Most active boats"):
-            boats = s_scope["boat_name"].value_counts().head(6).rename_axis("Boat").reset_index(name="Sightings")
-            if boats.empty:
-                st.caption("No boat names recorded.")
-            else:
-                fig = px.bar(boats.iloc[::-1], x="Sightings", y="Boat", orientation="h",
-                             color_discrete_sequence=[SAND])
-                st.plotly_chart(style(fig, h=230), config=PLOT_CFG, key="boats_chart")
 
 
 # ── Trim the table column menu to: sort, pin, hide ───────────────────────────
