@@ -339,7 +339,7 @@ with right:
 
     with card("species_list", f"Species spotted ({s_scope['species_code'].nunique()})"):
         sp_tab = d.species_table(s_scope, start, end)
-        st.dataframe(sp_tab, hide_index=True, height=180, column_config={
+        st.dataframe(sp_tab, hide_index=True, height=410, column_config={
             "Sightings": st.column_config.ProgressColumn(
                 format="%d", max_value=int(max(1, sp_tab["Sightings"].max() if len(sp_tab) else 1))),
             "Trend": st.column_config.AreaChartColumn("Trend (per month)", y_min=0, help="Sightings per month across the selected period"),
