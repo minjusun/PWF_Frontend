@@ -306,35 +306,19 @@ def delta(k):
 
 
 with kpi_row:
-    cols = st.columns(3)
-    for col, (k, label) in zip(cols, [("users", "Active users"), ("trips", "Trips"),
-                                      ("animals", "Animals counted")]):
+    cols = st.columns(2)
+    for col, (k, label) in zip(cols, [("users", "Active users"), ("animals", "Animals counted")]):
         with col:
             with card(f"kpi_{k}"):
                 st.metric(label, f"{cur[k]:,}", delta(k))
                 st.plotly_chart(sparkline(ms[k]), config=PLOT_CFG, key=f"spark_{k}")
 
-# ── Left of map: activity + contributors ─────────────────────────────────────
-with left:
-    with card("activity", "Activity over time"):
-        c1, c2 = st.columns([3, 2])
-        what = c1.segmented_control("Show", ["Trips & sightings", "Species"], default="Trips & sightings",
-                                    key="act_what", label_visibility="collapsed") or "Trips & sightings"
-        gran = c2.selectbox("Group by", ["Month", "Week", "Quarter"], key="act_gran",
-                            label_visibility="collapsed")
-        ot = d.over_time(s_hist, t_hist, {"Week": "W", "Month": "M", "Quarter": "Q"}[gran])
-        fig = go.Figure()
-        if what == "Trips & sightings":
-            fig.add_bar(x=ot["period"], y=ot["Trips"], name="Trips", marker_color=MIST)
-            fig.add_scatter(x=ot["period"], y=ot["Sightings"], name="Sightings", mode="lines",
-                            line=dict(color=DEEP, width=2))
-        else:
-            fig.add_bar(x=ot["period"], y=ot["Species"], name="Seen in period", marker_color=MIST)
-            fig.add_scatter(x=ot["period"], y=ot["Species recorded to date"], name="Recorded to date",
-                            mode="lines", line=dict(color=CORAL, width=2, shape="hv"))
-        fig.update_layout(barmode="overlay", hovermode="x unified")
-        st.plotly_chart(style(fig, h=205, legend=True), config=PLOT_CFG, key="activity_chart")
 
+# QUOTE 1!!!!--------------------------------------------------------------------
+st.write("WE <3 WHALES!!!!!!")
+
+# ── Left of map: contributors ────────────────────────────────────────────────
+with left:
     with card("contrib", "Top 5 contributors"):
         view = GLOBAL
         if not is_global:
@@ -345,7 +329,11 @@ with left:
                      column_config={"Sightings": st.column_config.ProgressColumn(
                          "Sightings", format="%d", max_value=int(max(1, tc["Sightings"].max() if len(tc) else 1)))})
 
-# ── Right of map: region snapshot, top species, species list ─────────────────
+
+# QUOTE 2!!!!--------------------------------------------------------------------
+st.write("WE ALSO <3 DOLPHINS!!!!!!")
+
+# ── Right of map: species list ───────────────────────────────────────────────
 with right:
     with card("species_list", f"Species spotted ({s_scope['species_code'].nunique()})"):
         sp_tab = d.species_table(s_scope, start, end)
@@ -356,9 +344,9 @@ with right:
             "Last seen": st.column_config.TextColumn("Last seen", width="small"),
         })
 
-# ── Row: when to see each species (plain language) ───────────────────────────
+# ── Row line 1: best time to see + activity over time ────────────────────────
 sp_rank = s_hist["species_name"].value_counts()
-c_best, c_year, c_group = st.columns([4, 3.6, 2.4])
+c_best, c_activity = st.columns([5, 5])
 if sp_rank.empty:
     with c_best:
         st.info("No sightings here yet. Pick another region or widen the filters.")
@@ -386,8 +374,34 @@ else:
             fig.update_yaxes(title_text="Sightings in a typical month", title_font_size=10)
             st.plotly_chart(style(fig, h=210), config=PLOT_CFG, key="season_best")
 
+with c_activity:
+    with card("activity", "Activity over time"):
+        c1, c2 = st.columns([3, 2])
+        what = c1.segmented_control("Show", ["Trips & sightings", "Species"], default="Trips & sightings",
+                                    key="act_what", label_visibility="collapsed") or "Trips & sightings"
+        gran = c2.selectbox("Group by", ["Month", "Week", "Quarter"], key="act_gran",
+                            label_visibility="collapsed")
+        ot = d.over_time(s_hist, t_hist, {"Week": "W", "Month": "M", "Quarter": "Q"}[gran])
+        fig = go.Figure()
+        if what == "Trips & sightings":
+            fig.add_bar(x=ot["period"], y=ot["Trips"], name="Trips", marker_color=MIST)
+            fig.add_scatter(x=ot["period"], y=ot["Sightings"], name="Sightings", mode="lines",
+                            line=dict(color=DEEP, width=2))
+        else:
+            fig.add_bar(x=ot["period"], y=ot["Species"], name="Seen in period", marker_color=MIST)
+            fig.add_scatter(x=ot["period"], y=ot["Species recorded to date"], name="Recorded to date",
+                            mode="lines", line=dict(color=CORAL, width=2, shape="hv"))
+        fig.update_layout(barmode="overlay", hovermode="x unified")
+        st.plotly_chart(style(fig, h=205, legend=True), config=PLOT_CFG, key="activity_chart")
+
+# ── Row line 2: this year vs past + typical group size ───────────────────────
+c_year, c_group = st.columns([5, 5])
+if sp_rank.empty:
     with c_year:
-        with card("curve", f"{now.year} so far vs past years", "Sightings per month"):
+        st.info("No sightings here yet. Pick another region or widen the filters.")
+else:
+    with c_year:
+        with card("curve", f"{now.year} so far vs past years", f"{sel}, sightings per month"):
             ty = d.this_year_vs_past(sd, data_start, now)
             fig = go.Figure()
             fig.add_scatter(x=ty["Month"], y=ty["Past average"], name="Past years (average)", mode="lines",
@@ -399,16 +413,15 @@ else:
             fig.update_xaxes(categoryorder="array", categoryarray=d.MONTHS)
             st.plotly_chart(style(fig, h=228, legend=True), config=PLOT_CFG, key="season_vs")
 
-    with c_group:
-        with card("group", "Typical group size", "Median animals per sighting"):
-            grp = (s_scope.groupby("species_name")["animals_total"].median().dropna().sort_values().tail(8)
-                   .rename_axis("Species").reset_index(name="Median"))
-            if grp.empty:
-                st.caption("No group counts recorded.")
-            else:
-                fig = px.bar(grp, x="Median", y="Species", orientation="h", color_discrete_sequence=[SEAFOAM])
-                st.plotly_chart(style(fig, h=200), config=PLOT_CFG, key="group_size")
-
+with c_group:
+    with card("group", "Typical group size", "Median animals per sighting"):
+        grp = (s_scope.groupby("species_name")["animals_total"].median().dropna().sort_values().tail(8)
+               .rename_axis("Species").reset_index(name="Median"))
+        if grp.empty:
+            st.caption("No group counts recorded.")
+        else:
+            fig = px.bar(grp, x="Median", y="Species", orientation="h", color_discrete_sequence=[SEAFOAM])
+            st.plotly_chart(style(fig, h=228), config=PLOT_CFG, key="group_size")
 
 # ── More charts (hidden until the button is pressed) ─────────────────────────
 def toggle_more():
