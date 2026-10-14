@@ -337,17 +337,6 @@ with right:
                       ("Top species here", s_scope["species_name"].mode().iat[0] if len(s_scope) else "—"),
                       ("First sighting", first.strftime("%b %Y") if pd.notna(first) else "—")])
 
-    with card("topspecies", "Top 5 species"):
-        ts5 = d.top_species(s_scope)
-        if ts5.empty:
-            st.caption("No sightings here for this period.")
-        else:
-            fig = px.bar(ts5.iloc[::-1], x="Sightings", y="Species", orientation="h", text="Sightings",
-                         color_discrete_sequence=[TEAL])
-            fig.update_traces(textposition="outside", cliponaxis=False)
-            fig.update_xaxes(range=[0, ts5["Sightings"].max() * 1.2])
-            st.plotly_chart(style(fig, h=160), config=PLOT_CFG, key="top_species_bar")
-
     with card("species_list", f"Species spotted ({s_scope['species_code'].nunique()})"):
         sp_tab = d.species_table(s_scope, start, end)
         st.dataframe(sp_tab, hide_index=True, height=180, column_config={
