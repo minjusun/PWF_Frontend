@@ -390,12 +390,13 @@ st.button("", key="more_btn", on_click=toggle_more, use_container_width=True,
           help="Hide extra charts" if ss.get("show_more") else "Show more charts")
 
 if ss.get("show_more"):
-    c_hot, c_peak, c_calf= st.columns([3.2, 2.4, 2.4])
+    c_hot, c_peak, c_calf = st.columns([3.2, 2.4, 2.4])
     with c_hot:
         if is_global:
             with card("hot", "Busiest region by year"):
                 st.dataframe(d.busiest_region_by_year(s_hist), hide_index=True, height=230,
-                             column_config={"Year": st.column_config.NumberColumn(format="%d")})
+                             column_config={"Year": st.column_config.NumberColumn(format="%d"),
+                                            "Share of year": None})
         else:
             with card("hot", f"{short_name} vs. Global"):
                 st.dataframe(d.region_rank_by_year(s_hist_all, region_sel), hide_index=True, height=230,
@@ -430,7 +431,6 @@ if ss.get("show_more"):
                 fig.update_traces(hovertemplate="%{x}: about %{y:.0f} calves in a typical year<extra></extra>")
                 fig.update_xaxes(tickangle=0, tickfont_size=9)
                 st.plotly_chart(style(fig, h=170), config=PLOT_CFG, key="calf_chart")
-
 
 
 # ── Trim the table column menu to: sort, pin, hide ───────────────────────────
