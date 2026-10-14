@@ -39,6 +39,7 @@ html {font-size: 14px;}
 [class*="st-key-card_kpi"] [data-testid="stMetricValue"] {font-size:1.4rem; color:#0E4D64;}
 [class*="st-key-card_kpi"] [data-testid="stMetricLabel"] p {font-size:0.76rem; color:#5B7680;}
 [class*="st-key-card_kpi"] [data-testid="stMetricDelta"] {font-size:0.72rem;}
+.kpi-label {color:#5B7680; font-size:0.76rem;}
 .scope {color:#5B7680; font-size:0.82rem; margin:0.25rem 0 0;}
 h1 {font-size:1.35rem !important; padding:0 !important;}
 .snap {display:grid; grid-template-columns:1fr 1fr; gap:12px 14px; padding:0 0 14px;}
@@ -245,13 +246,26 @@ def delta(k):
 
 
 with kpi_row:
-    cols = st.columns(5)
-    for col, (k, label) in zip(cols, [("users", "Active users"), ("trips", "Trips"), ("sightings", "Sightings"),
-                                      ("species", "Distinct species"), ("animals", "Animals counted")]):
+    k1, k2, k3, k_sp = st.columns([1, 1, 1, 2])
+    for col, (k, label) in zip([k1, k2, k3], [("users", "Active users"), ("trips", "Trips"),
+                                              ("animals", "Animals counted")]):
         with col:
             with card(f"kpi_{k}"):
                 st.metric(label, f"{cur[k]:,}", delta(k))
                 st.plotly_chart(sparkline(ms[k]), config=PLOT_CFG, key=f"spark_{k}")
+    with k_sp:
+        with card("kpi_topspecies"):
+            st.markdown("<div class='kpi-label'>Top 5 species</div>", unsafe_allow_html=True)
+            ts5 = d.top_species(s_scope)
+            if ts5.empty:
+                st.caption("No sightings here for this period.")
+            else:
+                fig = px.bar(ts5.iloc[::-1], x="Sightings", y="Species", orientation="h", text="Sightings",
+                             color_discrete_sequence=[TEAL])
+                fig.update_traces(textposition="outside", cliponaxis=False, width=0.7)
+                fig.update_xaxes(range=[0, ts5["Sightings"].max() * 1.15], visible=False)
+                fig.update_yaxes(showgrid=False, tickfont_size=10)
+                st.plotly_chart(style(fig, h=118), config=PLOT_CFG, key="top_species_bar")
 
 # ── Left of map: activity + contributors ─────────────────────────────────────
 with left:
@@ -303,27 +317,16 @@ with right:
                       ("Top species here", s_scope["species_name"].mode().iat[0] if len(s_scope) else "—"),
                       ("First sighting", first.strftime("%b %Y") if pd.notna(first) else "—")])
 
-    with card("topspecies", "Top 5 species"):
-        ts5 = d.top_species(s_scope)
-        if ts5.empty:
-            st.caption("No sightings here for this period.")
-        else:
-            fig = px.bar(ts5.iloc[::-1], x="Sightings", y="Species", orientation="h", text="Sightings",
-                         color_discrete_sequence=[TEAL])
-            fig.update_traces(textposition="outside", cliponaxis=False)
-            fig.update_xaxes(range=[0, ts5["Sightings"].max() * 1.2])
-            st.plotly_chart(style(fig, h=160), config=PLOT_CFG, key="top_species_bar")
-
     with card("species_list", f"Species spotted ({s_scope['species_code'].nunique()})"):
         sp_tab = d.species_table(s_scope, start, end)
-        st.dataframe(sp_tab, hide_index=True, height=180, column_config={
+        st.dataframe(sp_tab, hide_index=True, height=340, column_config={
             "Sightings": st.column_config.ProgressColumn(
                 format="%d", max_value=int(max(1, sp_tab["Sightings"].max() if len(sp_tab) else 1))),
             "Trend": st.column_config.AreaChartColumn("Trend (per month)", y_min=0, help="Sightings per month across the selected period"),
             "Last seen": st.column_config.TextColumn("Last seen", width="small"),
         })
 
-# ── Row: when to see each species
+# ── Row: when to see each species (plain language) ───────────────────────────
 sp_rank = s_hist["species_name"].value_counts()
 c_best, c_year, c_peak = st.columns([4, 3.6, 2.4])
 if sp_rank.empty:
@@ -371,7 +374,7 @@ else:
             st.dataframe(d.peak_month_by_year(sd, data_start, data_end), hide_index=True, height=240,
                          column_config={"Sightings that year": None})
 
-# ── Row: hotspots + encounters
+# ── Row: hotspots + encounters ───────────────────────────────────────────────
 c_hot, c_group, c_calf, c_boat = st.columns([3.2, 2.4, 2.4, 2])
 with c_hot:
     if is_global:
@@ -425,7 +428,9 @@ with c_boat:
             fig = px.bar(boats.iloc[::-1], x="Sightings", y="Boat", orientation="h", color_discrete_sequence=[SAND])
             st.plotly_chart(style(fig, h=215), config=PLOT_CFG, key="boats_chart")
 
-
+# ── Trim the table column menu to: sort, pin, hide ───────────────────────────
+# Streamlit has no option for this, so a tiny script hides the other menu rows
+# (column name/copy row, Format, Autosize) whenever a column menu opens.
 import streamlit.components.v1 as components  # noqa: E402
 
 components.html("""
