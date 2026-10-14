@@ -18,11 +18,9 @@ import regions as R
 st.set_page_config(page_title="Whale & Dolphin Tracker Dashboard", layout="wide", initial_sidebar_state="collapsed")
 
 GLOBAL = "Global"
-# Palette: Misty Fjord, Faded Coastal Slate, Bright Nautilus, Forest Biome, Midnight Space
-FJORD, SLATE, NAUTILUS, FOREST, MIDNIGHT = "#7494AC", "#4C758C", "#1E5C6C", "#1A4C47", "#0C1C2C"
-DEEP, TEAL, SEAFOAM, MIST, SAND, CORAL = MIDNIGHT, NAUTILUS, SLATE, FJORD, FOREST, FOREST
-OCEAN = [NAUTILUS, SLATE, FJORD, FOREST, MIDNIGHT]
-HEAT = ["#EEF2F5", FJORD, NAUTILUS, MIDNIGHT]
+DEEP, TEAL, SEAFOAM, MIST, SAND, CORAL = "#0E4D64", "#1B7F8C", "#4FB0A5", "#9FD3C7", "#E0A458", "#C8553D"
+OCEAN = [DEEP, TEAL, SEAFOAM, SAND, CORAL, "#6C5B7B", "#355C7D", MIST, "#99B898"]
+HEAT = ["#F2F7F8", MIST, TEAL, DEEP]
 px.defaults.color_discrete_sequence = OCEAN
 PLOT_CFG = {"displayModeBar": False}
 
@@ -31,25 +29,39 @@ st.markdown("""
 html {font-size: 14px;}
 .block-container {padding: 3.6rem 1.4rem 1.5rem; max-width: 100%;}
 [data-testid="stVerticalBlock"] {gap: 0.55rem;}
-[class*="st-key-card"] {background:#FFFFFF; border:1px solid #D5DEE6; border-radius:10px; padding:14px 16px 14px;}
+[class*="st-key-card"] {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; padding:14px 16px 14px;}
 [class*="st-key-card"] [data-testid="stVerticalBlock"] {gap: 0.5rem;}
 [class*="st-key-card"] [data-testid="stMarkdownContainer"] p {margin-bottom: 0;}
 .card-head {padding: 0 0 10px; line-height: 1.35;}
-.card-title {font-size:0.92rem; font-weight:600; color:#0C1C2C;}
-.card-sub {color:#4C758C; font-size:0.74rem; line-height:1.35; margin:2px 0 0;}
+.card-title {font-size:0.92rem; font-weight:600; color:#12303B;}
+.card-sub {color:#5B7680; font-size:0.74rem; line-height:1.35; margin:2px 0 0;}
 [class*="st-key-card_kpi"] {padding:12px 16px 10px;}
-[class*="st-key-card_kpi"] [data-testid="stMetricValue"] {font-size:1.4rem; color:#1E5C6C;}
-[class*="st-key-card_kpi"] [data-testid="stMetricLabel"] p {font-size:0.76rem; color:#4C758C;}
+[class*="st-key-card_kpi"] [data-testid="stMetricValue"] {font-size:1.4rem; color:#0E4D64;}
+[class*="st-key-card_kpi"] [data-testid="stMetricLabel"] p {font-size:0.76rem; color:#5B7680;}
 [class*="st-key-card_kpi"] [data-testid="stMetricDelta"] {font-size:0.72rem;}
-.scope {color:#4C758C; font-size:0.82rem; margin:0.25rem 0 0;}
+.scope {color:#5B7680; font-size:0.82rem; margin:0.25rem 0 0;}
 h1 {font-size:1.35rem !important; padding:0 !important;}
 .snap {display:grid; grid-template-columns:1fr 1fr; gap:12px 14px; padding:0 0 14px;}
-.snap span {display:block; color:#4C758C; font-size:0.72rem;}
-.snap b {display:block; color:#1E5C6C; font-size:1.05rem; font-weight:600; line-height:1.25;
+.snap span {display:block; color:#5B7680; font-size:0.72rem;}
+.snap b {display:block; color:#0E4D64; font-size:1.05rem; font-weight:600; line-height:1.25;
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] {display:none;}
-.st-key-more_btn button {background:#FFFFFF; border:1px solid #D5DEE6; border-radius:10px; min-height:2.4rem;}
-.st-key-more_btn button:hover {border-color:#1E5C6C; color:#1E5C6C;}
+/* Deep-ocean header band: Midnight Space → Forest Biome → Bright Nautilus → Faded Coastal Slate, wave edge */
+[data-testid="stApp"] {
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 120' preserveAspectRatio='none'><path fill='%237494AC' fill-opacity='0.35' d='M0,64 C240,112 480,8 720,40 C960,72 1200,120 1440,56 L1440,120 L0,120 Z'/><path fill='%23EEF4F5' d='M0,88 C260,40 520,120 760,92 C1000,64 1220,24 1440,72 L1440,120 L0,120 Z'/></svg>") no-repeat center 250px / 100% 110px,
+    radial-gradient(ellipse 60% 120% at 85% 0%, rgba(116,148,172,0.35), transparent 70%) no-repeat top / 100% 340px,
+    linear-gradient(165deg, #0C1C2C 0%, #1A4C47 45%, #1E5C6C 75%, #4C758C 100%) no-repeat top / 100% 340px,
+    #EEF4F5;
+}
+[data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stHeader"] {background: transparent;}
+[data-testid="stToolbar"] button, [data-testid="stToolbar"] a, [data-testid="stToolbar"] span {color: #E6EEF3 !important;}
+h1 {color: #FFFFFF !important;}
+.scope {color: #B9CBD8 !important;}
+.st-key-header [data-testid="stWidgetLabel"] p {color: #D7E3EC !important;}
+
+.st-key-more_btn button {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; min-height:2.4rem;}
+.st-key-more_btn button:hover {border-color:#1B7F8C; color:#1B7F8C;}
 .st-key-more_btn [data-testid="stIconMaterial"] {font-size:1.8rem;}
 </style>
 """, unsafe_allow_html=True)
@@ -68,17 +80,17 @@ def card(key, title=None, sub=None):
 def style(fig, h=280, legend=False):
     fig.update_layout(height=h, margin=dict(l=4, r=4, t=6, b=4), title_text="",
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      font=dict(family="-apple-system, Segoe UI, Inter, sans-serif", size=11, color="#0C1C2C"),
+                      font=dict(family="-apple-system, Segoe UI, Inter, sans-serif", size=11, color="#12303B"),
                       showlegend=legend, legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title_text=""),
                       hoverlabel=dict(bgcolor="white"))
-    fig.update_xaxes(showgrid=False, title_text="", linecolor="#D5DEE6")
-    fig.update_yaxes(gridcolor="#E8EDF2", title_text="", zeroline=False)
+    fig.update_xaxes(showgrid=False, title_text="", linecolor="#DCE7EA")
+    fig.update_yaxes(gridcolor="#EAF1F3", title_text="", zeroline=False)
     return fig
 
 
 def sparkline(series, color=TEAL):
     fig = go.Figure(go.Scatter(x=series.index, y=series.values, mode="lines", fill="tozeroy",
-                               line=dict(color=color, width=2), fillcolor="rgba(30,92,108,0.14)",
+                               line=dict(color=color, width=2), fillcolor="rgba(79,176,165,0.18)",
                                hovertemplate="%{x|%b %Y}: %{y:,.0f}<extra></extra>"))
     fig.update_layout(height=40, margin=dict(l=0, r=0, t=0, b=0), showlegend=False,
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
@@ -137,7 +149,8 @@ def go_global():
 
 
 # ── Header: title + filters ──────────────────────────────────────────────────
-h1, h2, h3, h4 = st.columns([3.4, 1.3, 2.4, 1.7], vertical_alignment="bottom")
+header_box = st.container(key="header")
+h1, h2, h3, h4 = header_box.columns([3.4, 1.3, 2.4, 1.7], vertical_alignment="bottom")
 with h1:
     st.title("Whale & Dolphin Tracker Dashboard")
     scope_slot = st.empty()
@@ -192,13 +205,13 @@ with center:
             name="Ocean", max_native_zoom=10, max_zoom=18).add_to(m)
         gj = R.to_geojson(region_shapes, region_counts, region_sel)
         vmax = np.log1p(max(1, region_counts.drop(R.OPEN_OCEAN, errors="ignore").max() if len(region_counts) else 1))
-        scale = px.colors.sample_colorscale([[0, FJORD], [0.4, SLATE], [0.75, NAUTILUS], [1, MIDNIGHT]], 101)
+        scale = px.colors.sample_colorscale([[0, MIST], [0.5, TEAL], [1, DEEP]], 101)
 
         def region_style(feat):
             p = feat["properties"]
             colour = scale[int(round(100 * np.log1p(p["sightings"]) / vmax))]
             if p["selected"]:
-                return {"fillColor": colour, "color": MIDNIGHT, "weight": 3.5, "fillOpacity": 0.85}
+                return {"fillColor": colour, "color": CORAL, "weight": 3, "fillOpacity": 0.8}
             return {"fillColor": colour, "color": "#FFFFFF", "weight": 1,
                     "fillOpacity": 0.3 if region_sel else 0.7}
 
