@@ -46,6 +46,9 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .snap b {display:block; color:#0E4D64; font-size:1.05rem; font-weight:600; line-height:1.25;
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] {display:none;}
+.st-key-more_btn button {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; min-height:2.4rem;}
+.st-key-more_btn button:hover {border-color:#1B7F8C; color:#1B7F8C;}
+.st-key-more_btn [data-testid="stIconMaterial"] {font-size:1.8rem;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -382,9 +385,9 @@ def toggle_more():
     ss.show_more = not ss.get("show_more", False)
 
 
-_, mid, _ = st.columns([4, 2, 4])
-mid.button("Hide extra charts" if ss.get("show_more") else "Show more charts", on_click=toggle_more,
-           use_container_width=True, key="more_btn")
+st.button("", key="more_btn", on_click=toggle_more, use_container_width=True,
+          icon=":material/keyboard_arrow_up:" if ss.get("show_more") else ":material/keyboard_arrow_down:",
+          help="Hide extra charts" if ss.get("show_more") else "Show more charts")
 
 if ss.get("show_more"):
     c_hot, c_peak, c_calf, c_boat = st.columns([3.2, 2.4, 2.4, 2])
