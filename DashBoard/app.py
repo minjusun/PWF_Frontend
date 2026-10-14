@@ -245,7 +245,7 @@ with center:
             m.fit_bounds([[y0, x0], [y1, x1]], padding=(20, 20))
 
         map_key = f"map_{region_sel or GLOBAL}"
-        map_state = st_folium(m, key=map_key, height=510, use_container_width=True,
+        map_state = st_folium(m, key=map_key, height=480, use_container_width=True,
                               returned_objects=["last_active_drawing"])
         clicked = ((map_state or {}).get("last_active_drawing") or {}).get("properties", {}).get("region")
         if clicked and ss.get("last_click") != (map_key, clicked):
@@ -339,7 +339,7 @@ with right:
 
     with card("species_list", f"Species spotted ({s_scope['species_code'].nunique()})"):
         sp_tab = d.species_table(s_scope, start, end)
-        st.dataframe(sp_tab, hide_index=True, height=410, column_config={
+        st.dataframe(sp_tab, hide_index=True, height=360, column_config={
             "Sightings": st.column_config.ProgressColumn(
                 format="%d", max_value=int(max(1, sp_tab["Sightings"].max() if len(sp_tab) else 1))),
             "Trend": st.column_config.AreaChartColumn("Trend (per month)", y_min=0, help="Sightings per month across the selected period"),
