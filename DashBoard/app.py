@@ -49,22 +49,36 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .snap b {display:block; color:#0E4D64; font-size:1.05rem; font-weight:600; line-height:1.25;
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] {display:none;}
-/* Page background: light blue at the top, darkening to navy at the bottom of the page */
-[data-testid="stApp"] {background: #061A30;}   /* anything past the content stays dark navy */
+/* Page background: sky gradient, a white-edged wave line, then teal water with drifting
+   specks that darkens toward the bottom of the page */
+[data-testid="stApp"] {background: #06142C;}   /* matches the deepest water, so the page bottom blends in */
 .block-container, [data-testid="stMainBlockContainer"] {
   min-height: 100vh;
-  background: linear-gradient(180deg, #D6ECF8 0%, #A9D3EC 15%, #5FA8D3 35%, #2A78AE 55%,
-                              #134B7A 75%, #0A2A4A 90%, #061A30 100%);
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 70' preserveAspectRatio='none'><path fill='%2316AAAA' d='M0,34 C120,26 220,22 360,26 C520,30 600,42 760,40 C920,38 1000,24 1160,24 C1290,24 1360,30 1440,28 L1440,70 L0,70 Z'/><path fill='none' stroke='white' stroke-width='4' d='M0,34 C120,26 220,22 360,26 C520,30 600,42 760,40 C920,38 1000,24 1160,24 C1290,24 1360,30 1440,28'/></svg>") no-repeat center 330px / 100% 70px,
+    linear-gradient(180deg, #9EDFFA 0px, #B5E3EA 120px, #CFE7DA 240px, #E6EAC6 340px, #E6EAC6 398px, transparent 398px) no-repeat top / 100% 400px,
+    radial-gradient(circle, rgba(255,255,255,0.32) 0 1.6px, transparent 2.2px) 0 0 / 190px 230px,
+    radial-gradient(circle, rgba(255,255,255,0.22) 0 1.1px, transparent 1.7px) 70px 110px / 130px 170px,
+    radial-gradient(circle, rgba(255,255,255,0.14) 0 2.4px, transparent 3px) 140px 40px / 310px 280px,
+    radial-gradient(ellipse 55% 14% at 18% 32%, rgba(120,225,220,0.20), transparent 70%),
+    radial-gradient(ellipse 45% 12% at 82% 48%, rgba(70,140,215,0.20), transparent 70%),
+    radial-gradient(ellipse 65% 16% at 35% 68%, rgba(60,70,160,0.22), transparent 70%),
+    radial-gradient(ellipse 50% 14% at 75% 86%, rgba(10,20,60,0.35), transparent 70%),
+    linear-gradient(180deg, #16AAAA 0px, #16AAAA 400px,
+                            #0E95A2 calc(400px + (100% - 400px) * 0.12), #0B7E9C calc(400px + (100% - 400px) * 0.25),
+                            #0A6794 calc(400px + (100% - 400px) * 0.38), #0D5188 calc(400px + (100% - 400px) * 0.50),
+                            #123D74 calc(400px + (100% - 400px) * 0.62), #112D5E calc(400px + (100% - 400px) * 0.74),
+                            #0B1F46 calc(400px + (100% - 400px) * 0.87), #06142C 100%);
 }
 [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stHeader"] {background: transparent;}
 [data-testid="stAppViewContainer"], [data-testid="stMain"] {overflow-x: hidden;}
 .brand {display:flex; align-items:center; gap:14px; flex-wrap:nowrap; padding:0 0 4px; min-width:0;}
 /* Header bar: full width, flush with the top and sides, dark blue */
-.st-key-header {background: linear-gradient(180deg, #071F38 0%, #0B3358 100%);
+.st-key-header {background: linear-gradient(180deg, #1E5F8F 0%, #12446F 45%, #0B3358 100%);
                 width: 100vw !important; max-width: 100vw; box-sizing: border-box;
                 position: relative; left: 50%; margin-left: -50vw !important;
                 margin-top: -3.8rem; margin-bottom: 48px;
-                padding: 3.8rem 4.5rem 20px; border-radius: 0;
+                padding: 2.2rem 4.5rem 18px; border-radius: 0;
                 box-shadow: 0 6px 20px rgba(6,26,48,0.25);}
 .st-key-header [data-baseweb="select"] > div {background: rgba(255,255,255,0.12) !important;
                                               border-color: rgba(255,255,255,0.25) !important;}
@@ -83,11 +97,20 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 
 .quote {font-size:2.4rem; font-weight:800; color:#0B2540; text-align:center; letter-spacing:0.02em;
         line-height:1.2; padding:10px 0;}
+.quote-spaced {margin: 30px 0 34px;}
 .quote-on-blue {color:#FFFFFF; text-shadow:0 2px 12px rgba(6,52,90,0.45);}
 /* Dropdowns: see-through blue tint instead of solid white/grey */
 [data-baseweb="select"] > div {background: rgba(42,120,174,0.12) !important;
                                border: 1px solid rgba(11,37,64,0.14) !important; border-radius: 8px !important;}
 [data-baseweb="select"] > div:hover {background: rgba(42,120,174,0.2) !important;}
+.st-key-kpi_row {margin-bottom: 22px;}
+/* Swimming whale: starts parked top-right; the script below moves it and bounces it off the edges */
+.whale-swim {position: fixed; top: 120px; right: 28px; z-index: 50; cursor: pointer; will-change: left, top;}
+.whale-bob {animation: whale-bob 4s ease-in-out infinite;}
+/* shown at its real size (never stretched bigger), so it stays sharp */
+.whale-swim img {display: block; width: auto; height: auto; max-width: 220px; zoom: 0.7;}
+@keyframes whale-bob {0%, 100% {transform: translateY(0);} 50% {transform: translateY(-12px);}}
+@media (prefers-reduced-motion: reduce) {.whale-bob {animation: none;}}
 .st-key-more_btn button {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; min-height:2.4rem;}
 .st-key-more_btn button:hover {border-color:#1B7F8C; color:#1B7F8C;}
 .st-key-more_btn [data-testid="stIconMaterial"] {font-size:1.8rem;}
@@ -105,25 +128,40 @@ def card(key, title=None, sub=None):
     return c
 
 
-def style(fig, h=280, legend=False):
+AXIS_FONT = dict(size=10, color="#5B7680")
+
+
+def style(fig, h=280, legend=False, x=None, y=None):
     fig.update_layout(height=h, margin=dict(l=4, r=4, t=6, b=4), title_text="",
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       font=dict(family="-apple-system, Segoe UI, Inter, sans-serif", size=11, color="#12303B"),
                       showlegend=legend, legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title_text=""),
                       hoverlabel=dict(bgcolor="white"))
-    fig.update_xaxes(showgrid=False, title_text="", linecolor="#DCE7EA")
-    fig.update_yaxes(gridcolor="#EAF1F3", title_text="", zeroline=False)
+    fig.update_xaxes(showgrid=False, title_text=x or "", title_font=AXIS_FONT, title_standoff=14,
+                     linecolor="#DCE7EA", automargin=True)
+    fig.update_yaxes(gridcolor="#EAF1F3", title_text=y or "", title_font=AXIS_FONT, title_standoff=14,
+                     zeroline=False, automargin=True)
     return fig
 
 
-def sparkline(series, color=TEAL, h=40):
+def sparkline(series, color=TEAL, h=40, axes=False, x=None, y=None):
     fig = go.Figure(go.Scatter(x=series.index, y=series.values, mode="lines", fill="tozeroy",
                                line=dict(color=color, width=2), fillcolor="rgba(79,176,165,0.18)",
                                hovertemplate="%{x|%b %Y}: %{y:,.0f}<extra></extra>"))
     fig.update_layout(height=h, margin=dict(l=0, r=0, t=0, b=0), showlegend=False,
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-    fig.update_xaxes(visible=False)
-    fig.update_yaxes(visible=False, rangemode="tozero")
+    if axes:   # small month labels along the bottom and counts up the side
+        fig.update_layout(margin=dict(l=52, r=10, t=6, b=42),
+                          font=dict(family="-apple-system, Segoe UI, Inter, sans-serif", size=10, color="#5B7680"))
+        fig.update_xaxes(visible=True, showgrid=False, linecolor="#DCE7EA", tickformat="%b %y", nticks=7,
+                         title_text=x or "", title_font=dict(size=10, color="#5B7680"), title_standoff=12,
+                         automargin=True)
+        fig.update_yaxes(visible=True, rangemode="tozero", gridcolor="#EAF1F3", nticks=4, zeroline=False,
+                         title_text=y or "", title_font=dict(size=10, color="#5B7680"), title_standoff=12,
+                         automargin=True)
+    else:
+        fig.update_xaxes(visible=False)
+        fig.update_yaxes(visible=False, rangemode="tozero")
     return fig
 
 
@@ -137,6 +175,20 @@ def logo_html():
                 b64 = base64.b64encode(f.read()).decode()
             return (f"<img class='brand-logo' src='data:{mime};base64,{b64}' alt='Pacific Whale Foundation'>"
                     "<span class='brand-divider'></span>")
+    return ""
+
+
+def whale_gif_html():
+    """A swimming whale from whalegif.gif (or .webp/.png) next to this file; empty if missing."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for name, mime in (("whalegif.gif", "image/gif"), ("whalegif.GIF", "image/gif"),
+                       ("whalegif.webp", "image/webp"), ("whalegif.png", "image/png")):
+        path = os.path.join(here, name)
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode()
+            return (f"<div class='whale-swim' title='Click me!'><div class='whale-bob'>"
+                    f"<img src='data:{mime};base64,{b64}' alt='Whale'></div></div>")
     return ""
 
 
@@ -191,7 +243,7 @@ def go_global():
 
 # ── Header: title + filters ──────────────────────────────────────────────────
 header_box = st.container(key="header")
-h1, h2, h3, h4 = header_box.columns([5.6, 1.3, 2.2, 1.6], vertical_alignment="bottom")
+h1, h2, h3, h4 = header_box.columns([5.6, 1.3, 2.2, 1.6], vertical_alignment="center")
 with h1:
     brand_slot = st.empty()
 years = sorted(s_all["year"].unique(), reverse=True)
@@ -219,7 +271,7 @@ follow = bool(sp_filter)
 s_period, t_period = d.slice_data(s, t, start, end, tracks_follow_sightings=follow)
 region_counts = s_period["region"].value_counts()
 
-kpi_row = st.container()
+kpi_row = st.container(key="kpi_row")
 left, center, right = st.columns([3, 4, 3])
 
 # ── Center: region search + choropleth map ───────────────────────────────────
@@ -265,7 +317,7 @@ with center:
             m.fit_bounds([[y0, x0], [y1, x1]], padding=(20, 20))
 
         map_key = f"map_{region_sel or GLOBAL}"
-        map_state = st_folium(m, key=map_key, height=480, use_container_width=True,
+        map_state = st_folium(m, key=map_key, height=400, use_container_width=True,
                               returned_objects=["last_active_drawing"])
         clicked = ((map_state or {}).get("last_active_drawing") or {}).get("properties", {}).get("region")
         if clicked and ss.get("last_click") != (map_key, clicked):
@@ -327,9 +379,10 @@ with kpi_row:
     with k_users:
         with card("kpi_users"):
             st.metric("Active users", f"{cur['users']:,}", delta("users"))
-            st.plotly_chart(sparkline(ms["users"]), config=PLOT_CFG, key="spark_users")
+            st.plotly_chart(sparkline(ms["users"], h=135, axes=True, x="Month", y="Users"), config=PLOT_CFG, key="spark_users")
     with k_quote:   # QUOTE 1, in the spot Animals counted used to be (no box)
-        st.markdown("<div class='quote'>WE &lt;3 WHALES!!!!!!</div>", unsafe_allow_html=True)
+        st.markdown("<div class='quote quote-on-blue'><i>&ldquo;This is a placeholder for a quote&rdquo;</i></div>",
+                    unsafe_allow_html=True)
 
 
 # ── Left of map: contributors ────────────────────────────────────────────────
@@ -340,23 +393,24 @@ with left:
             view = st.segmented_control("Contributor scope", [short_name, GLOBAL], default=short_name,
                                         key="contrib_scope", label_visibility="collapsed") or short_name
         tc = d.top_contributors(s_period, t_period) if view == GLOBAL else d.top_contributors(s_scope, t_scope)
-        st.dataframe(tc[["Contributor", "Sightings", "Trips", "Species"]], hide_index=True, height=212,
+        st.dataframe(tc[["Contributor", "Sightings", "Trips", "Species"]], hide_index=True, height=181, row_height=29,
                      column_config={"Sightings": st.column_config.ProgressColumn(
                          "Sightings", format="%d", max_value=int(max(1, tc["Sightings"].max() if len(tc) else 1)))})
 
 
 # QUOTE 2!!!!--------------------------------------------------------------------
-st.markdown("<div class='quote quote-on-blue'>WE ALSO &lt;3 DOLPHINS!!!!!!</div>", unsafe_allow_html=True)
+st.markdown("<div class='quote quote-on-blue quote-spaced'><i>&ldquo;This is a placeholder for a quote2&rdquo;</i></div>",
+            unsafe_allow_html=True)
 
 # ── Right of map: species list ───────────────────────────────────────────────
 with right:
     with card("kpi_animals"):   # compact: number + small trend line
         st.metric("Animals counted", f"{cur['animals']:,}", delta("animals"))
-        st.plotly_chart(sparkline(ms["animals"], h=28), config=PLOT_CFG, key="spark_animals")
+        st.plotly_chart(sparkline(ms["animals"], h=135, axes=True, x="Month", y="Animals"), config=PLOT_CFG, key="spark_animals")
 
     with card("species_list", f"Species spotted ({s_scope['species_code'].nunique()})"):
         sp_tab = d.species_table(s_scope, start, end)
-        st.dataframe(sp_tab, hide_index=True, height=400, column_config={
+        st.dataframe(sp_tab, hide_index=True, height=197, column_config={
             "Sightings": st.column_config.ProgressColumn(
                 format="%d", max_value=int(max(1, sp_tab["Sightings"].max() if len(sp_tab) else 1))),
             "Trend": st.column_config.AreaChartColumn("Trend (per month)", y_min=0, help="Sightings per month across the selected period"),
@@ -390,8 +444,8 @@ else:
                          color_discrete_map={"Best months": DEEP, "Other months": MIST},
                          category_orders={"Month": d.MONTHS})
             fig.update_traces(hovertemplate="%{x}: about %{y:.0f} sightings in a typical year<extra></extra>")
-            fig.update_yaxes(title_text="Sightings in a typical month", title_font_size=10)
-            st.plotly_chart(style(fig, h=210), config=PLOT_CFG, key="season_best")
+            st.plotly_chart(style(fig, h=185, x="Month", y="Sightings (typical month)"),
+                            config=PLOT_CFG, key="season_best")
 
 with c_activity:
     with card("activity", "Activity over time"):
@@ -411,7 +465,8 @@ with c_activity:
             fig.add_scatter(x=ot["period"], y=ot["Species recorded to date"], name="Recorded to date",
                             mode="lines", line=dict(color=CORAL, width=2, shape="hv"))
         fig.update_layout(barmode="overlay", hovermode="x unified")
-        st.plotly_chart(style(fig, h=205, legend=True), config=PLOT_CFG, key="activity_chart")
+        st.plotly_chart(style(fig, h=185, legend=True, x=gran, y="Trips & sightings" if what == "Trips & sightings" else "Species"),
+                        config=PLOT_CFG, key="activity_chart")
 
 # ── Row line 2: this year vs past + typical group size ───────────────────────
 c_year, c_group = st.columns([5, 5])
@@ -430,7 +485,7 @@ else:
                             line=dict(color=DEEP, width=2.5), marker=dict(size=6),
                             hovertemplate="%{x}: %{y:.0f}<extra>" + str(now.year) + "</extra>")
             fig.update_xaxes(categoryorder="array", categoryarray=d.MONTHS)
-            st.plotly_chart(style(fig, h=228, legend=True), config=PLOT_CFG, key="season_vs")
+            st.plotly_chart(style(fig, h=190, legend=True, x="Month", y="Sightings"), config=PLOT_CFG, key="season_vs")
 
 with c_group:
     with card("group", "Typical group size", "Median animals per sighting"):
@@ -440,7 +495,7 @@ with c_group:
             st.caption("No group counts recorded.")
         else:
             fig = px.bar(grp, x="Median", y="Species", orientation="h", color_discrete_sequence=[SEAFOAM])
-            st.plotly_chart(style(fig, h=228), config=PLOT_CFG, key="group_size")
+            st.plotly_chart(style(fig, h=190, x="Median animals per sighting", y="Species"), config=PLOT_CFG, key="group_size")
 
 # ── More charts (hidden until the button is pressed) ─────────────────────────
 def toggle_more():
@@ -492,13 +547,73 @@ if ss.get("show_more"):
                              category_orders={"Month": d.MONTHS})
                 fig.update_traces(hovertemplate="%{x}: about %{y:.0f} calves in a typical year<extra></extra>")
                 fig.update_xaxes(tickangle=0, tickfont_size=9)
-                st.plotly_chart(style(fig, h=170), config=PLOT_CFG, key="calf_chart")
+                st.plotly_chart(style(fig, h=160, x="Month", y="Calves (typical month)"), config=PLOT_CFG, key="calf_chart")
 
+
+# ── Swimming whale (whalegif.gif next to app.py) ─────────────────────────────
+st.markdown(whale_gif_html(), unsafe_allow_html=True)
+
+
+components_whale = """
+<script>
+(function () {
+  const win = window.parent, doc = win.document;
+  const st = win.__whale || (win.__whale = {x: null, y: null, vx: -95, vy: 32, running: false});
+  const loopId = (win.__whaleLoopId || 0) + 1;
+  win.__whaleLoopId = loopId;
+  const reduce = win.matchMedia && win.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const TOP_LIMIT = 100, PAD = 4;           // stay below the header bar and inside the window
+  let last = null;
+
+  function el() {
+    const w = doc.querySelector(".whale-swim");
+    if (w && !w.dataset.wired) {
+      w.dataset.wired = "1";
+      w.addEventListener("click", () => { if (!reduce) st.running = !st.running; });
+    }
+    return w;
+  }
+
+  function frame(t) {
+    if (win.__whaleLoopId !== loopId) return;            // a newer copy of this script took over
+    const w = el();
+    if (w) {
+      const bw = w.offsetWidth, bh = w.offsetHeight;
+      const maxX = win.innerWidth - bw - PAD, maxY = win.innerHeight - bh - PAD;
+      if (st.x === null) {                                 // first time: start from the parked spot
+        const r = w.getBoundingClientRect(); st.x = r.left; st.y = r.top;
+      }
+      const dt = last === null ? 0 : Math.min((t - last) / 1000, 0.05);
+      if (st.running) {
+        st.x += st.vx * dt; st.y += st.vy * dt;
+        if (st.x <= PAD)  { st.x = PAD;  st.vx =  Math.abs(st.vx); }   // head hits left edge: turn
+        if (st.x >= maxX) { st.x = maxX; st.vx = -Math.abs(st.vx); }   // head hits right edge: turn
+        if (st.y <= TOP_LIMIT) { st.y = TOP_LIMIT; st.vy =  Math.abs(st.vy); }
+        if (st.y >= maxY)      { st.y = maxY;      st.vy = -Math.abs(st.vy); }
+      }
+      st.x = Math.min(Math.max(st.x, PAD), Math.max(PAD, maxX));        // also after window resizes
+      st.y = Math.min(Math.max(st.y, TOP_LIMIT), Math.max(TOP_LIMIT, maxY));
+      w.style.right = "auto";
+      w.style.left = st.x + "px";
+      w.style.top = st.y + "px";
+      // the GIF faces left: normal when swimming left, mirrored when swimming right
+      w.style.transform = st.vx < 0 ? "scaleX(1)" : "scaleX(-1)";
+      w.title = st.running ? "Click to stop" : "Click me!";
+    }
+    last = t;
+    win.requestAnimationFrame(frame);
+  }
+  win.requestAnimationFrame(frame);
+})();
+</script>
+"""
 
 # ── Trim the table column menu to: sort, pin, hide ───────────────────────────
 # Streamlit has no option for this, so a tiny script hides the other menu rows
 # (column name/copy row, Format, Autosize) whenever a column menu opens.
 import streamlit.components.v1 as components  # noqa: E402
+
+components.html(components_whale, height=0)
 
 components.html("""
 <script>
