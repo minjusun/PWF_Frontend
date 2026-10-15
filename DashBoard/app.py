@@ -4,6 +4,7 @@ Run:  streamlit run app.py
 """
 import base64
 import html
+import json
 import os
 import re
 
@@ -49,26 +50,12 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .snap b {display:block; color:#0E4D64; font-size:1.05rem; font-weight:600; line-height:1.25;
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] {display:none;}
-/* Page background: sky gradient, a white-edged wave line, then teal water with drifting
-   specks that darkens toward the bottom of the page */
-[data-testid="stApp"] {background: #06142C;}   /* matches the deepest water, so the page bottom blends in */
+/* Page background: one smooth gradient, light blue at the top to dark navy at the bottom */
+[data-testid="stApp"] {background: #06142C;}   /* matches the bottom colour, so the page end blends in */
 .block-container, [data-testid="stMainBlockContainer"] {
   min-height: 100vh;
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 70' preserveAspectRatio='none'><path fill='%2316AAAA' d='M0,34 C120,26 220,22 360,26 C520,30 600,42 760,40 C920,38 1000,24 1160,24 C1290,24 1360,30 1440,28 L1440,70 L0,70 Z'/><path fill='none' stroke='white' stroke-width='4' d='M0,34 C120,26 220,22 360,26 C520,30 600,42 760,40 C920,38 1000,24 1160,24 C1290,24 1360,30 1440,28'/></svg>") no-repeat center 330px / 100% 70px,
-    linear-gradient(180deg, #9EDFFA 0px, #B5E3EA 120px, #CFE7DA 240px, #E6EAC6 340px, #E6EAC6 398px, transparent 398px) no-repeat top / 100% 400px,
-    radial-gradient(circle, rgba(255,255,255,0.32) 0 1.6px, transparent 2.2px) 0 0 / 190px 230px,
-    radial-gradient(circle, rgba(255,255,255,0.22) 0 1.1px, transparent 1.7px) 70px 110px / 130px 170px,
-    radial-gradient(circle, rgba(255,255,255,0.14) 0 2.4px, transparent 3px) 140px 40px / 310px 280px,
-    radial-gradient(ellipse 55% 14% at 18% 32%, rgba(120,225,220,0.20), transparent 70%),
-    radial-gradient(ellipse 45% 12% at 82% 48%, rgba(70,140,215,0.20), transparent 70%),
-    radial-gradient(ellipse 65% 16% at 35% 68%, rgba(60,70,160,0.22), transparent 70%),
-    radial-gradient(ellipse 50% 14% at 75% 86%, rgba(10,20,60,0.35), transparent 70%),
-    linear-gradient(180deg, #16AAAA 0px, #16AAAA 400px,
-                            #0E95A2 calc(400px + (100% - 400px) * 0.12), #0B7E9C calc(400px + (100% - 400px) * 0.25),
-                            #0A6794 calc(400px + (100% - 400px) * 0.38), #0D5188 calc(400px + (100% - 400px) * 0.50),
-                            #123D74 calc(400px + (100% - 400px) * 0.62), #112D5E calc(400px + (100% - 400px) * 0.74),
-                            #0B1F46 calc(400px + (100% - 400px) * 0.87), #06142C 100%);
+  background: linear-gradient(180deg, #CFE9F7 0%, #A8D5EE 14%, #78B9DF 28%, #4A97C8 42%,
+                              #2A74AA 56%, #1A5487 70%, #113964 84%, #06142C 100%);
 }
 [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stHeader"] {background: transparent;}
 [data-testid="stAppViewContainer"], [data-testid="stMain"] {overflow-x: hidden;}
@@ -108,7 +95,39 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .whale-swim {position: fixed; top: 120px; right: 28px; z-index: 50; cursor: pointer; will-change: left, top;}
 .whale-bob {animation: whale-bob 4s ease-in-out infinite;}
 /* shown at its real size (never stretched bigger), so it stays sharp */
-.whale-swim img {display: block; width: auto; height: auto; max-width: 220px; zoom: 0.7;}
+.whale-swim img {display: block; width: auto; height: auto; max-width: 220px; zoom: 0.7;}  /* 0.7 = 70% size */
+[class*="st-key-card"] {transition: box-shadow .3s ease, border-color .3s ease;}
+[class*="st-key-card"].wilbur-highlight {border-color: #4FB0A5 !important;
+    box-shadow: 0 0 0 3px rgba(79,176,165,0.55), 0 0 26px rgba(79,176,165,0.45) !important;}
+/* No fullscreen (enlarge) button on tables and charts */
+[data-testid="stElementToolbar"] button[aria-label*="ullscreen" i],
+[data-testid="stElementToolbar"] button[title*="ullscreen" i],
+[data-testid="stElementToolbarButton"]:has(button[aria-label*="ullscreen" i]),
+[data-testid="stElementToolbarButton"]:has(button[title*="ullscreen" i]) {display: none !important;}
+.wilbur-dock {position: fixed; left: -9999px; top: -9999px; z-index: 49; cursor: pointer;
+               box-sizing: border-box; border-radius: 18px;
+               background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.55);
+               box-shadow: 0 6px 22px rgba(6,26,48,0.18), inset 0 1px 0 rgba(255,255,255,0.5);
+               backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+               transition: background .25s, opacity .25s;}
+.wilbur-dock:hover {background: rgba(255,255,255,0.3);}
+.wilbur-dock span {position: absolute; left: 0; right: 0; bottom: 5px; text-align: center;
+                   font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em; color: #0E4D64; opacity: 0.75;}
+.wilbur-dock.empty {background: rgba(255,255,255,0.10); opacity: 0.7;}   /* his empty home while he's out */
+.wilbur-lock {position: fixed; left: -9999px; top: -9999px; z-index: 51; width: 24px; height: 24px;
+               padding: 0; border-radius: 50%; border: 1px solid rgba(14,77,100,0.25); cursor: pointer;
+               display: flex; align-items: center; justify-content: center;
+               background: rgba(255,255,255,0.85); color: #5B7680;
+               box-shadow: 0 2px 8px rgba(6,26,48,0.2); transition: background .2s, color .2s;}
+.wilbur-lock:hover {background: #FFFFFF; color: #0E4D64;}
+.wilbur-lock.on {background: #0E4D64; color: #FFFFFF; border-color: #0E4D64;}
+.wilbur-bubble {position: fixed; left: -9999px; top: -9999px; z-index: 60; max-width: 250px;
+                 background: #FFFFFF; color: #12303B; font-size: 0.82rem; line-height: 1.4;
+                 padding: 9px 12px; border-radius: 12px; border: 1px solid #DCE7EA;
+                 box-shadow: 0 8px 24px rgba(6,26,48,0.25); pointer-events: none;
+                 opacity: 0; transform: translateY(6px); transition: opacity .25s, transform .25s;}
+.wilbur-bubble.show {opacity: 1; transform: translateY(0);}
+.wilbur-bubble b {color: #0E4D64;}
 @keyframes whale-bob {0%, 100% {transform: translateY(0);} 50% {transform: translateY(-12px);}}
 @media (prefers-reduced-motion: reduce) {.whale-bob {animation: none;}}
 .st-key-more_btn button {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; min-height:2.4rem;}
@@ -187,7 +206,7 @@ def whale_gif_html():
         if os.path.exists(path):
             with open(path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
-            return (f"<div class='whale-swim' title='Click me!'><div class='whale-bob'>"
+            return (f"<div class='whale-swim'><div class='whale-bob'>"
                     f"<img src='data:{mime};base64,{b64}' alt='Whale'></div></div>")
     return ""
 
@@ -550,6 +569,66 @@ if ss.get("show_more"):
                 st.plotly_chart(style(fig, h=160, x="Month", y="Calves (typical month)"), config=PLOT_CFG, key="calf_chart")
 
 
+# ── Wilbur's facts: what he says when you click each card ────────────────────
+place = "around the world" if is_global else f"in {short_name}"
+wilbur = {
+    "kpi_users": f"{cur['users']:,} people logged trips or sightings {place} this period!",
+    "kpi_animals": f"{cur['animals']:,} animals counted {place}.",
+    "activity": "Bars are trips, the line is sightings. Hover over any point to see the exact count.",
+    "hot": "Each row is one year and the place with the most sightings that year.",
+    "shift": "This shows the busiest month for the species you picked, year by year.",
+    "calf": "Calves are baby whales and dolphins! This shows when the most are spotted.",
+}
+if len(tc):
+    wilbur["contrib"] = (f"These are the top spotters {place}. {tc.iloc[0]['Contributor']} leads with "
+                         f"{int(tc.iloc[0]['Sightings']):,} sightings!")
+else:
+    wilbur["contrib"] = f"No one has logged sightings {place} yet. Be the first!"
+if len(sp_tab):
+    wilbur["species_list"] = (f"{len(sp_tab)} species spotted {place}. The most common is the "
+                              f"{sp_tab.iloc[0]['Species'].lower()}.")
+else:
+    wilbur["species_list"] = f"No species spotted {place} yet for this period."
+if not sp_rank.empty:
+    best_txt = f" They show up most in {months_txt}." if len(top3) else ""
+    wilbur["season"] = f"Want to see {d.plural(sel).lower()}?{best_txt}"
+    wilbur["curve"] = (f"The dark line is {now.year}, the dotted line is the past-years average. "
+                       f"Above the dots means a busier month than usual!")
+if not grp.empty:
+    wilbur["group"] = (f"{d.plural(grp.iloc[-1]['Species'])} travel in the biggest groups, about "
+                       f"{grp.iloc[-1]['Median']:.0f} per sighting.")
+# bottom charts (under the arrow): live facts too, with a simple fallback if there's no data
+try:
+    if is_global:
+        hr = d.busiest_region_by_year(s_hist)
+        if len(hr):
+            r0 = hr.iloc[0]
+            wilbur["hot"] = (f"In {int(r0['Year'])}, {r0['Region'].split(',')[0]} had the most sightings: "
+                             f"{int(r0['Sightings']):,}. The top species there was the {str(r0['Top species']).lower()}.")
+    else:
+        rr = d.region_rank_by_year(s_hist_all, region_sel)
+        if len(rr):
+            r0 = rr.iloc[0]
+            wilbur["hot"] = (f"In {int(r0['Year'])}, {short_name} ranked {r0['Global rank']} worldwide "
+                             f"with {int(r0['Sightings']):,} sightings.")
+    if not sp_rank.empty:
+        pk = d.peak_month_by_year(sd, data_start, data_end)
+        if len(pk):
+            p0 = pk.iloc[0]
+            wilbur["shift"] = (f"In {str(p0['Year']).split(' ')[0]}, {d.plural(sel).lower()} were busiest in {p0['Busiest month']}, "
+                               f"with {int(p0['Sightings that month']):,} sightings that month.")
+    cc = s_hist.groupby("species_name")["animals_calf"].sum()
+    cc = cc[cc > 0]
+    if len(cc):
+        csp = ss.get("calf_species") if ss.get("calf_species") in cc.index else cc.idxmax()
+        tcv = d.typical_calves(s_hist[s_hist["species_name"] == csp], s_all["ts"].min(), now)
+        wilbur["calf"] = (f"Most {csp.lower()} calves are spotted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}. "
+                          f"Babies on board!")
+except Exception:
+    pass   # keep the general messages set above
+
+wilbur_json = json.dumps(wilbur).replace("</", "<\\/")
+
 # ── Swimming whale (whalegif.gif next to app.py) ─────────────────────────────
 st.markdown(whale_gif_html(), unsafe_allow_html=True)
 
@@ -558,47 +637,190 @@ components_whale = """
 <script>
 (function () {
   const win = window.parent, doc = win.document;
-  const st = win.__whale || (win.__whale = {x: null, y: null, vx: -95, vy: 32, running: false});
+  // x = left edge on screen; py = top edge measured on the PAGE, so Wilbur scrolls with the content
+  const st = win.__wilbur || (win.__wilbur = {x: null, py: null, vx: -95, vy: 32, running: false,
+                                               goto: null, returning: false, greeting: false, bubbleUntil: 0});
+  const GREETING = "Hi, I'm Wilbur! Click on a chart to hear some facts.";
+  // his home: the top-right of the page, inside a see-through "dock" square
+  const DOCK_PAD = 12;
+  function home(bw, bh, scrollY) {
+    return {x: Math.max(PAD + DOCK_PAD, win.innerWidth - bw - 28 - DOCK_PAD), y: 128, under: false};
+  }
+  const LOCKED_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M7 10V7a5 5 0 0 1 10 0v3h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1zm2 0h6V7a3 3 0 0 0-6 0v3z"/></svg>';
+  const OPEN_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M9 10h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1V7a5 5 0 0 1 9.6-2l-1.8.9A3 3 0 0 0 9 7v3z"/></svg>';
+  let lock = doc.querySelector(".wilbur-lock");
+  if (!lock) { lock = doc.createElement("button"); lock.className = "wilbur-lock"; lock.type = "button"; doc.body.appendChild(lock); }
+  function showLock() {
+    lock.innerHTML = st.locked ? LOCKED_ICON : OPEN_ICON;
+    lock.classList.toggle("on", !!st.locked);
+    lock.title = st.locked ? "Wilbur stays home (click to let him swim to charts)"
+                           : "Lock Wilbur at home";
+  }
+  showLock();
+  if (lock.__wilburHandler) lock.removeEventListener("click", lock.__wilburHandler);
+  lock.__wilburHandler = (e) => {
+    e.stopPropagation();
+    st.locked = !st.locked; showLock();
+    if (st.locked && (st.goto || st.returning || st.bubbleUntil)) { hush(); st.goto = null; st.returning = true; }
+  };
+  lock.addEventListener("click", lock.__wilburHandler);
+  let dock = doc.querySelector(".wilbur-dock");
+  if (!dock) {
+    dock = doc.createElement("div"); dock.className = "wilbur-dock";
+    dock.innerHTML = "<span>Wilbur</span>";
+    doc.body.appendChild(dock);
+  }
+  win.__wilburMsgs = __MSGS__;
   const loopId = (win.__whaleLoopId || 0) + 1;
   win.__whaleLoopId = loopId;
   const reduce = win.matchMedia && win.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const TOP_LIMIT = 100, PAD = 4;           // stay below the header bar and inside the window
+  const TOP_LIMIT = 100, PAD = 4, DASH = 340;   // DASH = speed (px/s) when swimming to a card
   let last = null;
+
+  // whichever element actually scrolls (Streamlit scrolls an inner container, not the window)
+  function scroller() {
+    const c = [doc.querySelector('[data-testid="stMain"]'),
+               doc.querySelector('[data-testid="stAppViewContainer"]'), doc.scrollingElement];
+    for (const e of c) if (e && e.scrollTop > 0) return e;
+    for (const e of c) if (e && e.scrollHeight > e.clientHeight + 1) return e;
+    return doc.scrollingElement;
+  }
+
+  // speech bubble (one, shared)
+  let bubble = doc.querySelector(".wilbur-bubble");
+  if (!bubble) { bubble = doc.createElement("div"); bubble.className = "wilbur-bubble"; doc.body.appendChild(bubble); }
+  function say(text) {
+    bubble.innerHTML = "";
+    const name = doc.createElement("b"); name.textContent = "Wilbur: ";
+    bubble.appendChild(name); bubble.appendChild(doc.createTextNode(text));
+    bubble.classList.add("show");
+  }
+  function hush() { bubble.classList.remove("show"); st.bubbleUntil = 0; st.greeting = false; }
+  function unhighlight() {
+    doc.querySelectorAll(".wilbur-highlight").forEach((n) => n.classList.remove("wilbur-highlight"));
+  }
+
+  // clicking a card sends Wilbur to it (one listener, always calls the latest handler)
+  win.__wilburOnClick = function (e) {
+    if (e.target.closest && e.target.closest(".whale-swim")) return;
+    const card = e.target.closest && e.target.closest('[class*="st-key-card_"]');
+    if (!card) return;
+    const m = card.className.match(/st-key-card_([A-Za-z0-9_-]+)/);
+    if (!m) return;
+    unhighlight(); card.classList.add("wilbur-highlight");   // glow around the clicked card
+    st.highlightUntil = win.performance.now() + 9000;
+    if (!(m[1] in win.__wilburMsgs)) return;
+    if (st.locked || reduce) {                    // locked: he stays home and tells you from there
+      hush(); say(win.__wilburMsgs[m[1]]); st.bubbleUntil = win.performance.now() + 7000;
+      return;
+    }
+    st.running = false; st.returning = false; st.goto = m[1]; hush();
+  };
+  // re-attach on every reload: a listener left over from an old copy of this script stops firing
+  if (win.__wilburClickHandler) doc.removeEventListener("click", win.__wilburClickHandler, true);
+  win.__wilburClickHandler = (e) => win.__wilburOnClick(e);
+  doc.addEventListener("click", win.__wilburClickHandler, true);
+
+  function wireDock(handler) {
+    if (dock.dataset.wired === String(loopId)) return;
+    if (dock.__wilburHandler) dock.removeEventListener("click", dock.__wilburHandler);
+    dock.__wilburHandler = handler; dock.addEventListener("click", handler);
+    dock.dataset.wired = String(loopId);
+  }
 
   function el() {
     const w = doc.querySelector(".whale-swim");
-    if (w && !w.dataset.wired) {
-      w.dataset.wired = "1";
-      w.addEventListener("click", () => { if (!reduce) st.running = !st.running; });
+    if (w && w.dataset.wired !== String(loopId)) {
+      if (w.__wilburHandler) w.removeEventListener("click", w.__wilburHandler);
+      w.__wilburHandler = () => {           // click Wilbur: say hello at home, or head home if he's out
+        const busy = st.goto || st.bubbleUntil || st.returning;
+        hush(); st.goto = null; st.running = false;
+        if (busy) { st.returning = true; }
+        else { say(GREETING); st.bubbleUntil = win.performance.now() + 6000; }
+      };
+      w.addEventListener("click", w.__wilburHandler);
+      w.dataset.wired = String(loopId);
     }
+    if (w && w.__wilburHandler) wireDock(w.__wilburHandler);
     return w;
+  }
+
+  function moveTo(tx, ty, dt) {               // glide toward a point; true once there
+    const dx = tx - st.x, dy = ty - st.py, dist = Math.hypot(dx, dy);
+    const step = Math.max(DASH, dist * 1.6) * dt;   // far away: swim faster
+    if (Math.abs(dx) > 2) st.vx = dx < 0 ? -Math.abs(st.vx) : Math.abs(st.vx);   // face the way he swims
+    if (dist <= step || dist < 2) { st.x = tx; st.py = ty; return true; }
+    st.x += dx / dist * step; st.py += dy / dist * step; return false;
   }
 
   function frame(t) {
     if (win.__whaleLoopId !== loopId) return;            // a newer copy of this script took over
     const w = el();
     if (w) {
+      const sc = scroller(), scrollY = sc ? sc.scrollTop : 0;
+      const pageH = Math.max(sc ? sc.scrollHeight : 0, win.innerHeight);
       const bw = w.offsetWidth, bh = w.offsetHeight;
-      const maxX = win.innerWidth - bw - PAD, maxY = win.innerHeight - bh - PAD;
-      if (st.x === null) {                                 // first time: start from the parked spot
-        const r = w.getBoundingClientRect(); st.x = r.left; st.y = r.top;
-      }
+      const maxX = win.innerWidth - bw - PAD, maxPY = pageH - bh - PAD;
+      const hm = home(bw, bh, scrollY), homeX = hm.x, homeY = hm.y;
+      if (st.x === null) { st.x = homeX; st.py = homeY; }
       const dt = last === null ? 0 : Math.min((t - last) / 1000, 0.05);
-      if (st.running) {
-        st.x += st.vx * dt; st.y += st.vy * dt;
-        if (st.x <= PAD)  { st.x = PAD;  st.vx =  Math.abs(st.vx); }   // head hits left edge: turn
-        if (st.x >= maxX) { st.x = maxX; st.vx = -Math.abs(st.vx); }   // head hits right edge: turn
-        if (st.y <= TOP_LIMIT) { st.y = TOP_LIMIT; st.vy =  Math.abs(st.vy); }
-        if (st.y >= maxY)      { st.y = maxY;      st.vy = -Math.abs(st.vy); }
+      if (!win.__wilburGreeted && last !== null) {         // only when the page first loads
+        win.__wilburGreeted = true;
+        say(GREETING); st.bubbleUntil = t + 8000;
       }
-      st.x = Math.min(Math.max(st.x, PAD), Math.max(PAD, maxX));        // also after window resizes
-      st.y = Math.min(Math.max(st.y, TOP_LIMIT), Math.max(TOP_LIMIT, maxY));
-      w.style.right = "auto";
-      w.style.left = st.x + "px";
-      w.style.top = st.y + "px";
-      // the GIF faces left: normal when swimming left, mirrored when swimming right
-      w.style.transform = st.vx < 0 ? "scaleX(1)" : "scaleX(-1)";
-      w.title = st.running ? "Click to stop" : "Click me!";
+
+      if (st.goto) {                                       // 1) swimming to a clicked card
+        const card = doc.querySelector(".st-key-card_" + st.goto);
+        if (!card) { st.goto = null; st.returning = true; }
+        else {
+          const r = card.getBoundingClientRect();
+          let tx = r.right - bw * 0.55;                    // perch on the card's top-right corner...
+          if (tx > maxX) tx = r.left - bw * 0.45;          // ...or top-left if there's no room
+          let ty = r.top + scrollY - bh * 0.55;
+          tx = Math.min(Math.max(tx, PAD), maxX);
+          ty = Math.min(Math.max(ty, TOP_LIMIT), Math.max(TOP_LIMIT, maxPY));
+          if (moveTo(tx, ty, dt)) {
+            say(win.__wilburMsgs[st.goto] || "");
+            st.goto = null; st.bubbleUntil = t + 7000;
+          }
+        }
+      } else if (st.bubbleUntil) {                         // 2) talking about the card
+        if (t > st.bubbleUntil) { hush(); st.returning = true; }
+      } else if (st.returning) {                           // 3) done: swim back home
+        if (moveTo(homeX, homeY, dt)) { st.returning = false; st.vx = -Math.abs(st.vx); }
+      } else {                                             // 5) resting at home
+        st.x = homeX; st.py = homeY;
+      }
+      if (st.highlightUntil && t > st.highlightUntil && !st.goto && !st.bubbleUntil) {
+        unhighlight(); st.highlightUntil = 0;               // glow fades once Wilbur is done
+      }
+      st.x = Math.min(Math.max(st.x, PAD), Math.max(PAD, maxX));
+      st.py = Math.min(Math.max(st.py, TOP_LIMIT), Math.max(TOP_LIMIT, maxPY));
+      const y = st.py - scrollY;                           // page position -> screen position
+      dock.style.left = (homeX - DOCK_PAD) + "px";
+      dock.style.top = (homeY - DOCK_PAD - scrollY) + "px";
+      dock.style.width = (bw + DOCK_PAD * 2) + "px";
+      dock.style.height = (bh + DOCK_PAD * 2 + 14) + "px";
+      lock.style.left = (homeX - DOCK_PAD + bw + DOCK_PAD * 2 - 14) + "px";
+      lock.style.top = (homeY - DOCK_PAD - scrollY - 9) + "px";
+      dock.classList.toggle("empty", !(Math.abs(st.x - homeX) < 3 && Math.abs(st.py - homeY) < 3));
+      w.style.right = "auto"; w.style.left = st.x + "px"; w.style.top = y + "px";
+      w.style.transform = st.vx < 0 ? "scaleX(1)" : "scaleX(-1)";   // the GIF faces left
+
+      if (bubble.classList.contains("show")) {            // bubble above Wilbur, or beside him near the top
+        const bwid = bubble.offsetWidth, bhgt = bubble.offsetHeight;
+        let lx = st.x + bw / 2 - bwid / 2, ly = y - bhgt - 8;
+        const atHome = hm.under && Math.abs(st.x - homeX) < 3 && Math.abs(st.py - homeY) < 3;
+        if (atHome) {
+          ly = y + bh + 8;                                 // below him, so it doesn't cover the table
+        } else if (ly < 110) {                                    // would cover the header: put it at his side
+          ly = y + bh / 2 - bhgt / 2;
+          lx = st.x - bwid - 10;
+          if (lx < 8) lx = st.x + bw + 10;
+        }
+        lx = Math.min(Math.max(lx, 8), win.innerWidth - bwid - 8);
+        bubble.style.left = lx + "px"; bubble.style.top = ly + "px";
+      }
     }
     last = t;
     win.requestAnimationFrame(frame);
@@ -613,7 +835,7 @@ components_whale = """
 # (column name/copy row, Format, Autosize) whenever a column menu opens.
 import streamlit.components.v1 as components  # noqa: E402
 
-components.html(components_whale, height=0)
+components.html(components_whale.replace("__MSGS__", wilbur_json), height=0)
 
 components.html("""
 <script>
