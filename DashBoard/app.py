@@ -30,7 +30,7 @@ PLOT_CFG = {"displayModeBar": False}
 st.markdown("""
 <style>
 html {font-size: 14px;}
-.block-container {padding: 2.6rem 1.4rem 1.5rem; max-width: 100%;}
+.block-container, [data-testid="stMainBlockContainer"] {padding: 2.6rem 4.5rem 2rem; max-width: 100%;}
 [data-testid="stVerticalBlock"] {gap: 0.55rem;}
 [class*="st-key-card"] {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; padding:14px 16px 14px;}
 [class*="st-key-card"] [data-testid="stVerticalBlock"] {gap: 0.5rem;}
@@ -49,28 +49,45 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .snap b {display:block; color:#0E4D64; font-size:1.05rem; font-weight:600; line-height:1.25;
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] {display:none;}
-/* Underwater header band: deep blue at the surface, brighter mid-water, layered waves into the page */
-[data-testid="stApp"] {
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 200' preserveAspectRatio='none'><path fill='%233E93C2' fill-opacity='0.45' d='M0,70 C180,30 360,120 600,80 C840,40 1080,10 1260,60 C1350,85 1400,90 1440,80 L1440,200 L0,200 Z'/><path fill='%237DB7D9' fill-opacity='0.45' d='M0,110 C220,150 420,70 660,105 C900,140 1120,170 1440,110 L1440,200 L0,200 Z'/><path fill='%23B9D9EC' fill-opacity='0.55' d='M0,140 C260,110 500,175 760,150 C1000,128 1240,110 1440,138 L1440,200 L0,200 Z'/><path fill='%23EEF4F5' d='M0,165 C280,140 540,195 800,178 C1040,162 1260,150 1440,168 L1440,200 L0,200 Z'/></svg>") no-repeat center 300px / 100% 200px,
-    radial-gradient(ellipse 45% 70% at 70% 0%, rgba(255,255,255,0.16), transparent 70%) no-repeat top / 100% 480px,
-    radial-gradient(ellipse 35% 55% at 15% 10%, rgba(120,190,230,0.18), transparent 70%) no-repeat top / 100% 480px,
-    linear-gradient(180deg, #06345A 0%, #0A4D7F 22%, #0A5E90 45%, #0A6898 65%, #2A86B5 85%, #5FA8CF 100%) no-repeat top / 100% 480px,
-    #EEF4F5;
+/* Page background: light blue at the top, darkening to navy at the bottom of the page */
+[data-testid="stApp"] {background: #061A30;}   /* anything past the content stays dark navy */
+.block-container, [data-testid="stMainBlockContainer"] {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #D6ECF8 0%, #A9D3EC 15%, #5FA8D3 35%, #2A78AE 55%,
+                              #134B7A 75%, #0A2A4A 90%, #061A30 100%);
 }
 [data-testid="stAppViewContainer"], [data-testid="stMain"], [data-testid="stHeader"] {background: transparent;}
+[data-testid="stAppViewContainer"], [data-testid="stMain"] {overflow-x: hidden;}
+.brand {display:flex; align-items:center; gap:14px; flex-wrap:nowrap; padding:0 0 4px; min-width:0;}
+/* Header bar: full width, flush with the top and sides, dark blue */
+.st-key-header {background: linear-gradient(180deg, #071F38 0%, #0B3358 100%);
+                width: 100vw !important; max-width: 100vw; box-sizing: border-box;
+                position: relative; left: 50%; margin-left: -50vw !important;
+                margin-top: -3.8rem; margin-bottom: 48px;
+                padding: 3.8rem 4.5rem 20px; border-radius: 0;
+                box-shadow: 0 6px 20px rgba(6,26,48,0.25);}
+.st-key-header [data-baseweb="select"] > div {background: rgba(255,255,255,0.12) !important;
+                                              border-color: rgba(255,255,255,0.25) !important;}
+.st-key-header [data-baseweb="select"] > div:hover {background: rgba(255,255,255,0.2) !important;}
+.st-key-header [data-baseweb="select"] div, .st-key-header [data-baseweb="select"] input,
+.st-key-header [data-baseweb="select"] svg {color: #FFFFFF !important; fill: #FFFFFF !important;}
 [data-testid="stToolbar"] button, [data-testid="stToolbar"] a, [data-testid="stToolbar"] span {color: #E6EEF3 !important;}
-.brand {display:flex; align-items:center; gap:14px; flex-wrap:nowrap; padding:0 0 18px; min-width:0;}
-.st-key-header {margin-bottom: 6px;}
 .brand-logo {height:42px; width:auto; display:block;}
 .brand-divider {width:1px; height:30px; background:rgba(255,255,255,0.35);}
 .brand-logo, .brand-divider {flex-shrink:0;}
-.summary {color:#D7E3EC; font-size:0.92rem; line-height:1.4; white-space:nowrap; overflow:hidden;
+.summary {color:#C9DAE7; font-size:0.92rem; line-height:1.4; white-space:nowrap; overflow:hidden;
           text-overflow:ellipsis; min-width:0;}
-.summary b {color:#FFFFFF; font-weight:600;}
-.summary-dot {margin:0 9px; color:rgba(255,255,255,0.45);}
-.st-key-header [data-testid="stWidgetLabel"] p {color: #D7E3EC !important;}
+.summary b {color:#FFFFFF; font-weight:700;}
+.summary-dot {margin:0 9px; color:rgba(255,255,255,0.4);}
+.st-key-header [data-testid="stWidgetLabel"] p {color: #C9DAE7 !important;}
 
+.quote {font-size:2.4rem; font-weight:800; color:#0B2540; text-align:center; letter-spacing:0.02em;
+        line-height:1.2; padding:10px 0;}
+.quote-on-blue {color:#FFFFFF; text-shadow:0 2px 12px rgba(6,52,90,0.45);}
+/* Dropdowns: see-through blue tint instead of solid white/grey */
+[data-baseweb="select"] > div {background: rgba(42,120,174,0.12) !important;
+                               border: 1px solid rgba(11,37,64,0.14) !important; border-radius: 8px !important;}
+[data-baseweb="select"] > div:hover {background: rgba(42,120,174,0.2) !important;}
 .st-key-more_btn button {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; min-height:2.4rem;}
 .st-key-more_btn button:hover {border-color:#1B7F8C; color:#1B7F8C;}
 .st-key-more_btn [data-testid="stIconMaterial"] {font-size:1.8rem;}
@@ -99,11 +116,11 @@ def style(fig, h=280, legend=False):
     return fig
 
 
-def sparkline(series, color=TEAL):
+def sparkline(series, color=TEAL, h=40):
     fig = go.Figure(go.Scatter(x=series.index, y=series.values, mode="lines", fill="tozeroy",
                                line=dict(color=color, width=2), fillcolor="rgba(79,176,165,0.18)",
                                hovertemplate="%{x|%b %Y}: %{y:,.0f}<extra></extra>"))
-    fig.update_layout(height=40, margin=dict(l=0, r=0, t=0, b=0), showlegend=False,
+    fig.update_layout(height=h, margin=dict(l=0, r=0, t=0, b=0), showlegend=False,
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     fig.update_xaxes(visible=False)
     fig.update_yaxes(visible=False, rangemode="tozero")
@@ -306,16 +323,14 @@ def delta(k):
 
 
 with kpi_row:
-    cols = st.columns(2)
-    for col, (k, label) in zip(cols, [("users", "Active users"), ("animals", "Animals counted")]):
-        with col:
-            with card(f"kpi_{k}"):
-                st.metric(label, f"{cur[k]:,}", delta(k))
-                st.plotly_chart(sparkline(ms[k]), config=PLOT_CFG, key=f"spark_{k}")
+    k_users, k_quote = st.columns(2, vertical_alignment="center")
+    with k_users:
+        with card("kpi_users"):
+            st.metric("Active users", f"{cur['users']:,}", delta("users"))
+            st.plotly_chart(sparkline(ms["users"]), config=PLOT_CFG, key="spark_users")
+    with k_quote:   # QUOTE 1, in the spot Animals counted used to be (no box)
+        st.markdown("<div class='quote'>WE &lt;3 WHALES!!!!!!</div>", unsafe_allow_html=True)
 
-
-# QUOTE 1!!!!--------------------------------------------------------------------
-st.write("WE <3 WHALES!!!!!!")
 
 # ── Left of map: contributors ────────────────────────────────────────────────
 with left:
@@ -331,13 +346,17 @@ with left:
 
 
 # QUOTE 2!!!!--------------------------------------------------------------------
-st.write("WE ALSO <3 DOLPHINS!!!!!!")
+st.markdown("<div class='quote quote-on-blue'>WE ALSO &lt;3 DOLPHINS!!!!!!</div>", unsafe_allow_html=True)
 
 # ── Right of map: species list ───────────────────────────────────────────────
 with right:
+    with card("kpi_animals"):   # compact: number + small trend line
+        st.metric("Animals counted", f"{cur['animals']:,}", delta("animals"))
+        st.plotly_chart(sparkline(ms["animals"], h=28), config=PLOT_CFG, key="spark_animals")
+
     with card("species_list", f"Species spotted ({s_scope['species_code'].nunique()})"):
         sp_tab = d.species_table(s_scope, start, end)
-        st.dataframe(sp_tab, hide_index=True, height=535, column_config={
+        st.dataframe(sp_tab, hide_index=True, height=400, column_config={
             "Sightings": st.column_config.ProgressColumn(
                 format="%d", max_value=int(max(1, sp_tab["Sightings"].max() if len(sp_tab) else 1))),
             "Trend": st.column_config.AreaChartColumn("Trend (per month)", y_min=0, help="Sightings per month across the selected period"),
