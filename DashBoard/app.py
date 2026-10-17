@@ -416,9 +416,12 @@ with left:
                      column_config={"Sightings": st.column_config.ProgressColumn(
                          "Sightings", format="%d", max_value=int(max(1, tc["Sightings"].max() if len(tc) else 1)))})
 
+    st.markdown("<div class='quote quote-on-blue quote-spaced'>This is a placeholder for an img</div>",
+            unsafe_allow_html=True)
+
 
 # QUOTE 2!!!!--------------------------------------------------------------------
-st.markdown("<div class='quote quote-on-blue quote-spaced'><i>&ldquo;This is a placeholder for a quote2&rdquo;</i></div>",
+st.markdown("<div class='quote quote-on-blue quote-spaced'><i>&ldquo;This is a placeholder for a quote&rdquo;</i></div>",
             unsafe_allow_html=True)
 
 # ── Right of map: species list ───────────────────────────────────────────────
@@ -438,33 +441,12 @@ with right:
 
 # ── Row line 1: best time to see + activity over time ────────────────────────
 sp_rank = s_hist["species_name"].value_counts()
-c_best, c_activity = st.columns([5, 5])
+c_activity, c_best = st.columns([5, 5])
 if sp_rank.empty:
     with c_best:
         st.info("No sightings here yet. Pick another region or widen the filters.")
 else:
     data_start, data_end = s_all["ts"].min(), now
-    with c_best:
-        with card("season", "Best time to see"):
-            sel = st.selectbox("Species", sp_rank.index.tolist(), key="season_species",
-                               label_visibility="collapsed")
-            sd = s_hist[s_hist["species_name"] == sel]
-            tm = d.typical_month(sd, data_start, data_end)
-            top3 = tm.nlargest(3, "Average")
-            top3 = top3[top3["Average"] > 0]
-            if len(top3):
-                months_txt = ", ".join(top3.sort_values("month")["Month"].tolist()[:-1])
-                months_txt = (f"{months_txt} and {top3.sort_values('month')['Month'].iloc[-1]}"
-                              if len(top3) > 1 else top3["Month"].iloc[0])
-                st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>{html.escape(d.plural(sel))} "
-                            f"are seen most in <b>{months_txt}</b>.</div>", unsafe_allow_html=True)
-            tm["colour"] = np.where(tm["month"].isin(top3["month"]), "Best months", "Other months")
-            fig = px.bar(tm, x="Month", y="Average", color="colour",
-                         color_discrete_map={"Best months": DEEP, "Other months": MIST},
-                         category_orders={"Month": d.MONTHS})
-            fig.update_traces(hovertemplate="%{x}: about %{y:.0f} sightings in a typical year<extra></extra>")
-            st.plotly_chart(style(fig, h=185, x="Month", y="Sightings (typical month)"),
-                            config=PLOT_CFG, key="season_best")
 
 with c_activity:
     with card("activity", "Activity over time"):
@@ -486,7 +468,27 @@ with c_activity:
         fig.update_layout(barmode="overlay", hovermode="x unified")
         st.plotly_chart(style(fig, h=185, legend=True, x=gran, y="Trips & sightings" if what == "Trips & sightings" else "Species"),
                         config=PLOT_CFG, key="activity_chart")
-
+with c_best:
+        with card("season", "Best time to see"):
+            sel = st.selectbox("Species", sp_rank.index.tolist(), key="season_species",
+                               label_visibility="collapsed")
+            sd = s_hist[s_hist["species_name"] == sel]
+            tm = d.typical_month(sd, data_start, data_end)
+            top3 = tm.nlargest(3, "Average")
+            top3 = top3[top3["Average"] > 0]
+            if len(top3):
+                months_txt = ", ".join(top3.sort_values("month")["Month"].tolist()[:-1])
+                months_txt = (f"{months_txt} and {top3.sort_values('month')['Month'].iloc[-1]}"
+                              if len(top3) > 1 else top3["Month"].iloc[0])
+                st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>{html.escape(d.plural(sel))} "
+                            f"are seen most in <b>{months_txt}</b>.</div>", unsafe_allow_html=True)
+            tm["colour"] = np.where(tm["month"].isin(top3["month"]), "Best months", "Other months")
+            fig = px.bar(tm, x="Month", y="Average", color="colour",
+                         color_discrete_map={"Best months": DEEP, "Other months": MIST},
+                         category_orders={"Month": d.MONTHS})
+            fig.update_traces(hovertemplate="%{x}: about %{y:.0f} sightings in a typical year<extra></extra>")
+            st.plotly_chart(style(fig, h=185, x="Month", y="Sightings (typical month)"),
+                            config=PLOT_CFG, key="season_best")
 # ── Row line 2: this year vs past + typical group size ───────────────────────
 c_year, c_group = st.columns([5, 5])
 if sp_rank.empty:
@@ -573,7 +575,8 @@ if ss.get("show_more"):
 place = "around the world" if is_global else f"in {short_name}"
 wilbur = {
     "kpi_users": f"{cur['users']:,} people logged trips or sightings {place} this period!",
-    "kpi_animals": f"{cur['animals']:,} animals counted {place}.",
+    "kpi_animals": f"{cur['animals']:,} animals counted {place}!",
+    "map": ("This map shows regions where sightings were collected on our Whale & Dolphin Tracker app."),
     "activity": "Bars are trips, the line is sightings. Hover over any point to see the exact count.",
     "hot": "Each row is one year and the place with the most sightings that year.",
     "shift": "This shows the busiest month for the species you picked, year by year.",
@@ -702,9 +705,22 @@ components_whale = """
 
   // clicking a card sends Wilbur to it (one listener, always calls the latest handler)
   win.__wilburOnClick = function (e) {
-    if (e.target.closest && e.target.closest(".whale-swim")) return;
+    if (e.target.closest && e.target.closest(".whale-swim, .wilbur-dock, .wilbur-lock")) return;
     const card = e.target.closest && e.target.closest('[class*="st-key-card_"]');
-    if (!card) return;
+    if (card) win.__wilburVisit(card);
+  };
+  // the map lives in its own frame, so the page never sees clicks inside it; instead we notice
+  // the page losing focus to that frame and treat it as a click on the map card
+  if (win.__wilburBlurHandler) win.removeEventListener("blur", win.__wilburBlurHandler);
+  win.__wilburBlurHandler = () => setTimeout(() => {
+    const a = doc.activeElement;
+    if (!a || a.tagName !== "IFRAME") return;
+    const card = a.closest('[class*="st-key-card_map"]');
+    if (card) win.__wilburVisit(card);
+  }, 0);
+  win.addEventListener("blur", win.__wilburBlurHandler);
+
+  win.__wilburVisit = function (card) {
     const m = card.className.match(/st-key-card_([A-Za-z0-9_-]+)/);
     if (!m) return;
     unhighlight(); card.classList.add("wilbur-highlight");   // glow around the clicked card
