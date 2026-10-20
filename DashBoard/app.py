@@ -97,37 +97,37 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 /* shown at its real size (never stretched bigger), so it stays sharp */
 .whale-swim img {display: block; width: auto; height: auto; max-width: 220px; zoom: 0.7;}  /* 0.7 = 70% size */
 [class*="st-key-card"] {transition: box-shadow .3s ease, border-color .3s ease;}
-[class*="st-key-card"].wilbur-highlight {border-color: #4FB0A5 !important;
+[class*="st-key-card"].Humphrey-highlight {border-color: #4FB0A5 !important;
     box-shadow: 0 0 0 3px rgba(79,176,165,0.55), 0 0 26px rgba(79,176,165,0.45) !important;}
 /* No fullscreen (enlarge) button on tables and charts */
 [data-testid="stElementToolbar"] button[aria-label*="ullscreen" i],
 [data-testid="stElementToolbar"] button[title*="ullscreen" i],
 [data-testid="stElementToolbarButton"]:has(button[aria-label*="ullscreen" i]),
 [data-testid="stElementToolbarButton"]:has(button[title*="ullscreen" i]) {display: none !important;}
-.wilbur-dock {position: fixed; left: -9999px; top: -9999px; z-index: 49; cursor: pointer;
+.Humphrey-dock {position: fixed; left: -9999px; top: -9999px; z-index: 49; cursor: pointer;
                box-sizing: border-box; border-radius: 18px;
                background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.55);
                box-shadow: 0 6px 22px rgba(6,26,48,0.18), inset 0 1px 0 rgba(255,255,255,0.5);
                backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
                transition: background .25s, opacity .25s;}
-.wilbur-dock:hover {background: rgba(255,255,255,0.3);}
-.wilbur-dock span {position: absolute; left: 0; right: 0; bottom: 5px; text-align: center;
-                   font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em; color: #0E4D64; opacity: 0.75;}
-.wilbur-dock.empty {background: rgba(255,255,255,0.10); opacity: 0.7;}   /* his empty home while he's out */
-.wilbur-lock {position: fixed; left: -9999px; top: -9999px; z-index: 51; width: 24px; height: 24px;
+.Humphrey-dock:hover {background: rgba(255,255,255,0.3);}
+.Humphrey-dock span {position: absolute; left: 0; right: 0; bottom: 5px; text-align: center;
+                   font-size: 0.85rem; font-weight: 600; letter-spacing: 0.04em; color: #0E4D64; opacity: 0.75;}
+.Humphrey-dock.empty {background: rgba(255,255,255,0.10); opacity: 0.7;}   /* his empty home while he's out */
+.Humphrey-lock {position: fixed; left: -9999px; top: -9999px; z-index: 51; width: 24px; height: 24px;
                padding: 0; border-radius: 50%; border: 1px solid rgba(14,77,100,0.25); cursor: pointer;
                display: flex; align-items: center; justify-content: center;
                background: rgba(255,255,255,0.85); color: #5B7680;
                box-shadow: 0 2px 8px rgba(6,26,48,0.2); transition: background .2s, color .2s;}
-.wilbur-lock:hover {background: #FFFFFF; color: #0E4D64;}
-.wilbur-lock.on {background: #0E4D64; color: #FFFFFF; border-color: #0E4D64;}
-.wilbur-bubble {position: fixed; left: -9999px; top: -9999px; z-index: 60; max-width: 250px;
+.Humphrey-lock:hover {background: #FFFFFF; color: #0E4D64;}
+.Humphrey-lock.on {background: #0E4D64; color: #FFFFFF; border-color: #0E4D64;}
+.Humphrey-bubble {position: fixed; left: -9999px; top: -9999px; z-index: 60; max-width: 250px;
                  background: #FFFFFF; color: #12303B; font-size: 0.82rem; line-height: 1.4;
                  padding: 9px 12px; border-radius: 12px; border: 1px solid #DCE7EA;
                  box-shadow: 0 8px 24px rgba(6,26,48,0.25); pointer-events: none;
                  opacity: 0; transform: translateY(6px); transition: opacity .25s, transform .25s;}
-.wilbur-bubble.show {opacity: 1; transform: translateY(0);}
-.wilbur-bubble b {color: #0E4D64;}
+.Humphrey-bubble.show {opacity: 1; transform: translateY(0);}
+.Humphrey-bubble b {color: #0E4D64;}
 @keyframes whale-bob {0%, 100% {transform: translateY(0);} 50% {transform: translateY(-12px);}}
 @media (prefers-reduced-motion: reduce) {.whale-bob {animation: none;}}
 .st-key-more_btn button {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; min-height:2.4rem;}
@@ -147,19 +147,21 @@ def card(key, title=None, sub=None):
     return c
 
 
-AXIS_FONT = dict(size=10, color="#5B7680")
+AXIS_FONT = dict(size=11, color="#0B2233")   # axis titles
+TICK_FONT = dict(size=11, color="#0B2233")   # months / numbers along the axes
 
 
 def style(fig, h=280, legend=False, x=None, y=None):
     fig.update_layout(height=h, margin=dict(l=4, r=4, t=6, b=4), title_text="",
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      font=dict(family="-apple-system, Segoe UI, Inter, sans-serif", size=11, color="#12303B"),
+                      font=dict(family="-apple-system, Segoe UI, Inter, sans-serif", size=11, color="#0B2233"),
                       showlegend=legend, legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title_text=""),
                       hoverlabel=dict(bgcolor="white"))
     fig.update_xaxes(showgrid=False, title_text=x or "", title_font=AXIS_FONT, title_standoff=14,
-                     linecolor="#DCE7EA", automargin=True)
+                     tickfont=TICK_FONT, linecolor="#B7C7CF", automargin=True)
     fig.update_yaxes(gridcolor="#EAF1F3", title_text=y or "", title_font=AXIS_FONT, title_standoff=14,
-                     zeroline=False, automargin=True)
+                     tickfont=TICK_FONT, zeroline=False, automargin=True)
+    fig.update_layout(legend_font=dict(color="#0B2233", size=11))
     return fig
 
 
@@ -171,12 +173,12 @@ def sparkline(series, color=TEAL, h=40, axes=False, x=None, y=None):
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     if axes:   # small month labels along the bottom and counts up the side
         fig.update_layout(margin=dict(l=52, r=10, t=6, b=42),
-                          font=dict(family="-apple-system, Segoe UI, Inter, sans-serif", size=10, color="#5B7680"))
-        fig.update_xaxes(visible=True, showgrid=False, linecolor="#DCE7EA", tickformat="%b %y", nticks=7,
-                         title_text=x or "", title_font=dict(size=10, color="#5B7680"), title_standoff=12,
+                          font=dict(family="-apple-system, Segoe UI, Inter, sans-serif", size=10, color="#0B2233"))
+        fig.update_xaxes(visible=True, showgrid=False, linecolor="#DCE7EA", tickformat="%b %y", nticks=7, tickfont=TICK_FONT,
+                         title_text=x or "", title_font=dict(size=11, color="#0B2233"), title_standoff=12,
                          automargin=True)
-        fig.update_yaxes(visible=True, rangemode="tozero", gridcolor="#EAF1F3", nticks=4, zeroline=False,
-                         title_text=y or "", title_font=dict(size=10, color="#5B7680"), title_standoff=12,
+        fig.update_yaxes(visible=True, rangemode="tozero", gridcolor="#EAF1F3", nticks=4, zeroline=False, tickfont=TICK_FONT,
+                         title_text=y or "", title_font=dict(size=11, color="#0B2233"), title_standoff=12,
                          automargin=True)
     else:
         fig.update_xaxes(visible=False)
@@ -394,17 +396,18 @@ def delta(k):
 
 
 with kpi_row:
-    k_users, k_quote = st.columns(2, vertical_alignment="center")
-    with k_users:
-        with card("kpi_users"):
-            st.metric("Active users", f"{cur['users']:,}", delta("users"))
-            st.plotly_chart(sparkline(ms["users"], h=135, axes=True, x="Month", y="Users"), config=PLOT_CFG, key="spark_users")
-    with k_quote:   # QUOTE 1, in the spot Animals counted used to be (no box)
+    k_animals, k_quote = st.columns(2, vertical_alignment="center")
+    with k_animals:
+        with card("kpi_animals"):
+            st.metric("Animals counted", f"{cur['animals']:,}", delta("animals"))
+            st.plotly_chart(sparkline(ms["animals"], h=135, axes=True, x="Month", y="Animals"),
+                            config=PLOT_CFG, theme=None, key="spark_animals")
+    with k_quote:   # QUOTE 1
         st.markdown("<div class='quote quote-on-blue'><i>&ldquo;This is a placeholder for a quote&rdquo;</i></div>",
                     unsafe_allow_html=True)
 
 
-# ── Left of map: contributors ────────────────────────────────────────────────
+# ── Left of map: top 5 contributors (red bars) + active users ────────────────
 with left:
     with card("contrib", "Top 5 contributors"):
         view = GLOBAL
@@ -416,37 +419,35 @@ with left:
                      column_config={"Sightings": st.column_config.ProgressColumn(
                          "Sightings", format="%d", max_value=int(max(1, tc["Sightings"].max() if len(tc) else 1)))})
 
-    st.markdown("<div class='quote quote-on-blue quote-spaced'>This is a placeholder for an img</div>",
-            unsafe_allow_html=True)
+    with card("kpi_users"):
+        st.metric("Active users", f"{cur['users']:,}", delta("users"))
+        st.plotly_chart(sparkline(ms["users"], h=135, axes=True, x="Month", y="Users"),
+                        config=PLOT_CFG, theme=None, key="spark_users")
 
 
-# QUOTE 2!!!!--------------------------------------------------------------------
-st.markdown("<div class='quote quote-on-blue quote-spaced'><i>&ldquo;This is a placeholder for a quote&rdquo;</i></div>",
-            unsafe_allow_html=True)
-
-# ── Right of map: species list ───────────────────────────────────────────────
+# ── Right of map: species spotted (red bars) + image placeholder ─────────────
 with right:
-    with card("kpi_animals"):   # compact: number + small trend line
-        st.metric("Animals counted", f"{cur['animals']:,}", delta("animals"))
-        st.plotly_chart(sparkline(ms["animals"], h=135, axes=True, x="Month", y="Animals"), config=PLOT_CFG, key="spark_animals")
-
     with card("species_list", f"Species spotted ({s_scope['species_code'].nunique()})"):
         sp_tab = d.species_table(s_scope, start, end)
-        st.dataframe(sp_tab, hide_index=True, height=197, column_config={
+        st.dataframe(sp_tab, hide_index=True, height=181, row_height=29, column_config={   # same size as Top 5 contributors
             "Sightings": st.column_config.ProgressColumn(
                 format="%d", max_value=int(max(1, sp_tab["Sightings"].max() if len(sp_tab) else 1))),
             "Trend": st.column_config.AreaChartColumn("Trend (per month)", y_min=0, help="Sightings per month across the selected period"),
             "Last seen": st.column_config.TextColumn("Last seen", width="small"),
         })
 
-# ── Row line 1: best time to see + activity over time ────────────────────────
+    st.markdown("<div class='quote quote-on-blue quote-spaced'>This is a placeholder for an img</div>",
+                unsafe_allow_html=True)
+
+
+# QUOTE 2!!!!--------------------------------------------------------------------
+st.markdown("<div class='quote quote-on-blue quote-spaced'><i>&ldquo;This is a placeholder for a quote&rdquo;</i></div>",
+            unsafe_allow_html=True)
+
+# ── Row line 1: activity over time + best time to see ────────────────────────
 sp_rank = s_hist["species_name"].value_counts()
 c_activity, c_best = st.columns([5, 5])
-if sp_rank.empty:
-    with c_best:
-        st.info("No sightings here yet. Pick another region or widen the filters.")
-else:
-    data_start, data_end = s_all["ts"].min(), now
+data_start, data_end = s_all["ts"].min(), now
 
 with c_activity:
     with card("activity", "Activity over time"):
@@ -467,8 +468,12 @@ with c_activity:
                             mode="lines", line=dict(color=CORAL, width=2, shape="hv"))
         fig.update_layout(barmode="overlay", hovermode="x unified")
         st.plotly_chart(style(fig, h=185, legend=True, x=gran, y="Trips & sightings" if what == "Trips & sightings" else "Species"),
-                        config=PLOT_CFG, key="activity_chart")
+                        config=PLOT_CFG, theme=None, key="activity_chart")
+
 with c_best:
+    if sp_rank.empty:
+        st.info("No sightings here yet. Pick another region or widen the filters.")
+    else:
         with card("season", "Best time to see"):
             sel = st.selectbox("Species", sp_rank.index.tolist(), key="season_species",
                                label_visibility="collapsed")
@@ -488,7 +493,8 @@ with c_best:
                          category_orders={"Month": d.MONTHS})
             fig.update_traces(hovertemplate="%{x}: about %{y:.0f} sightings in a typical year<extra></extra>")
             st.plotly_chart(style(fig, h=185, x="Month", y="Sightings (typical month)"),
-                            config=PLOT_CFG, key="season_best")
+                            config=PLOT_CFG, theme=None, key="season_best")
+
 # ── Row line 2: this year vs past + typical group size ───────────────────────
 c_year, c_group = st.columns([5, 5])
 if sp_rank.empty:
@@ -506,7 +512,7 @@ else:
                             line=dict(color=DEEP, width=2.5), marker=dict(size=6),
                             hovertemplate="%{x}: %{y:.0f}<extra>" + str(now.year) + "</extra>")
             fig.update_xaxes(categoryorder="array", categoryarray=d.MONTHS)
-            st.plotly_chart(style(fig, h=190, legend=True, x="Month", y="Sightings"), config=PLOT_CFG, key="season_vs")
+            st.plotly_chart(style(fig, h=190, legend=True, x="Month", y="Sightings"), config=PLOT_CFG, theme=None, key="season_vs")
 
 with c_group:
     with card("group", "Typical group size", "Median animals per sighting"):
@@ -516,7 +522,7 @@ with c_group:
             st.caption("No group counts recorded.")
         else:
             fig = px.bar(grp, x="Median", y="Species", orientation="h", color_discrete_sequence=[SEAFOAM])
-            st.plotly_chart(style(fig, h=190, x="Median animals per sighting", y="Species"), config=PLOT_CFG, key="group_size")
+            st.plotly_chart(style(fig, h=190, x="Median animals per sighting", y="Species"), config=PLOT_CFG, theme=None, key="group_size")
 
 # ── More charts (hidden until the button is pressed) ─────────────────────────
 def toggle_more():
@@ -567,13 +573,13 @@ if ss.get("show_more"):
                 fig = px.bar(tc_, x="Month", y="Calves", color_discrete_sequence=[SAND],
                              category_orders={"Month": d.MONTHS})
                 fig.update_traces(hovertemplate="%{x}: about %{y:.0f} calves in a typical year<extra></extra>")
-                fig.update_xaxes(tickangle=0, tickfont_size=9)
-                st.plotly_chart(style(fig, h=160, x="Month", y="Calves (typical month)"), config=PLOT_CFG, key="calf_chart")
+                fig.update_xaxes(tickangle=0, tickfont=dict(size=10, color="#0B2233"))
+                st.plotly_chart(style(fig, h=160, x="Month", y="Calves (typical month)"), config=PLOT_CFG, theme=None, key="calf_chart")
 
 
-# ── Wilbur's facts: what he says when you click each card ────────────────────
+# ── Humphrey's facts: what he says when you click each card ────────────────────
 place = "around the world" if is_global else f"in {short_name}"
-wilbur = {
+Humphrey = {
     "kpi_users": f"{cur['users']:,} people logged trips or sightings {place} this period!",
     "kpi_animals": f"{cur['animals']:,} animals counted {place}!",
     "map": ("This map shows regions where sightings were collected on our Whale & Dolphin Tracker app."),
@@ -583,22 +589,22 @@ wilbur = {
     "calf": "Calves are baby whales and dolphins! This shows when the most are spotted.",
 }
 if len(tc):
-    wilbur["contrib"] = (f"These are the top spotters {place}. {tc.iloc[0]['Contributor']} leads with "
+    Humphrey["contrib"] = (f"These are the top spotters {place}. {tc.iloc[0]['Contributor']} leads with "
                          f"{int(tc.iloc[0]['Sightings']):,} sightings!")
 else:
-    wilbur["contrib"] = f"No one has logged sightings {place} yet. Be the first!"
+    Humphrey["contrib"] = f"No one has logged sightings {place} yet. Be the first!"
 if len(sp_tab):
-    wilbur["species_list"] = (f"{len(sp_tab)} species spotted {place}. The most common is the "
+    Humphrey["species_list"] = (f"{len(sp_tab)} species spotted {place}. The most common is the "
                               f"{sp_tab.iloc[0]['Species'].lower()}.")
 else:
-    wilbur["species_list"] = f"No species spotted {place} yet for this period."
+    Humphrey["species_list"] = f"No species spotted {place} yet for this period."
 if not sp_rank.empty:
     best_txt = f" They show up most in {months_txt}." if len(top3) else ""
-    wilbur["season"] = f"Want to see {d.plural(sel).lower()}?{best_txt}"
-    wilbur["curve"] = (f"The dark line is {now.year}, the dotted line is the past-years average. "
+    Humphrey["season"] = f"Want to see {d.plural(sel).lower()}?{best_txt}"
+    Humphrey["curve"] = (f"The dark line is {now.year}, the dotted line is the past-years average. "
                        f"Above the dots means a busier month than usual!")
 if not grp.empty:
-    wilbur["group"] = (f"{d.plural(grp.iloc[-1]['Species'])} travel in the biggest groups, about "
+    Humphrey["group"] = (f"{d.plural(grp.iloc[-1]['Species'])} travel in the biggest groups, about "
                        f"{grp.iloc[-1]['Median']:.0f} per sighting.")
 # bottom charts (under the arrow): live facts too, with a simple fallback if there's no data
 try:
@@ -606,31 +612,31 @@ try:
         hr = d.busiest_region_by_year(s_hist)
         if len(hr):
             r0 = hr.iloc[0]
-            wilbur["hot"] = (f"In {int(r0['Year'])}, {r0['Region'].split(',')[0]} had the most sightings: "
+            Humphrey["hot"] = (f"In {int(r0['Year'])}, {r0['Region'].split(',')[0]} had the most sightings: "
                              f"{int(r0['Sightings']):,}. The top species there was the {str(r0['Top species']).lower()}.")
     else:
         rr = d.region_rank_by_year(s_hist_all, region_sel)
         if len(rr):
             r0 = rr.iloc[0]
-            wilbur["hot"] = (f"In {int(r0['Year'])}, {short_name} ranked {r0['Global rank']} worldwide "
+            Humphrey["hot"] = (f"In {int(r0['Year'])}, {short_name} ranked {r0['Global rank']} worldwide "
                              f"with {int(r0['Sightings']):,} sightings.")
     if not sp_rank.empty:
         pk = d.peak_month_by_year(sd, data_start, data_end)
         if len(pk):
             p0 = pk.iloc[0]
-            wilbur["shift"] = (f"In {str(p0['Year']).split(' ')[0]}, {d.plural(sel).lower()} were busiest in {p0['Busiest month']}, "
+            Humphrey["shift"] = (f"In {str(p0['Year']).split(' ')[0]}, {d.plural(sel).lower()} were busiest in {p0['Busiest month']}, "
                                f"with {int(p0['Sightings that month']):,} sightings that month.")
     cc = s_hist.groupby("species_name")["animals_calf"].sum()
     cc = cc[cc > 0]
     if len(cc):
         csp = ss.get("calf_species") if ss.get("calf_species") in cc.index else cc.idxmax()
         tcv = d.typical_calves(s_hist[s_hist["species_name"] == csp], s_all["ts"].min(), now)
-        wilbur["calf"] = (f"Most {csp.lower()} calves are spotted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}. "
+        Humphrey["calf"] = (f"Most {csp.lower()} calves are spotted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}. "
                           f"Babies on board!")
 except Exception:
     pass   # keep the general messages set above
 
-wilbur_json = json.dumps(wilbur).replace("</", "<\\/")
+Humphrey_json = json.dumps(Humphrey).replace("</", "<\\/")
 
 # ── Swimming whale (whalegif.gif next to app.py) ─────────────────────────────
 st.markdown(whale_gif_html(), unsafe_allow_html=True)
@@ -640,10 +646,10 @@ components_whale = """
 <script>
 (function () {
   const win = window.parent, doc = win.document;
-  // x = left edge on screen; py = top edge measured on the PAGE, so Wilbur scrolls with the content
-  const st = win.__wilbur || (win.__wilbur = {x: null, py: null, vx: -95, vy: 32, running: false,
+  // x = left edge on screen; py = top edge measured on the PAGE, so Humphrey scrolls with the content
+  const st = win.__Humphrey || (win.__Humphrey = {x: null, py: null, vx: -95, vy: 32, running: false,
                                                goto: null, returning: false, greeting: false, bubbleUntil: 0});
-  const GREETING = "Hi, I'm Wilbur! Click on a chart to hear some facts.";
+  const GREETING = "Hi, I'm Humphrey! Click on a chart to hear some facts.";
   // his home: the top-right of the page, inside a see-through "dock" square
   const DOCK_PAD = 12;
   function home(bw, bh, scrollY) {
@@ -651,29 +657,29 @@ components_whale = """
   }
   const LOCKED_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M7 10V7a5 5 0 0 1 10 0v3h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1zm2 0h6V7a3 3 0 0 0-6 0v3z"/></svg>';
   const OPEN_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M9 10h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1V7a5 5 0 0 1 9.6-2l-1.8.9A3 3 0 0 0 9 7v3z"/></svg>';
-  let lock = doc.querySelector(".wilbur-lock");
-  if (!lock) { lock = doc.createElement("button"); lock.className = "wilbur-lock"; lock.type = "button"; doc.body.appendChild(lock); }
+  let lock = doc.querySelector(".Humphrey-lock");
+  if (!lock) { lock = doc.createElement("button"); lock.className = "Humphrey-lock"; lock.type = "button"; doc.body.appendChild(lock); }
   function showLock() {
     lock.innerHTML = st.locked ? LOCKED_ICON : OPEN_ICON;
     lock.classList.toggle("on", !!st.locked);
-    lock.title = st.locked ? "Wilbur stays home (click to let him swim to charts)"
-                           : "Lock Wilbur at home";
+    lock.title = st.locked ? "Humphrey stays home (click to let him swim to charts)"
+                           : "Lock Humphrey at home";
   }
   showLock();
-  if (lock.__wilburHandler) lock.removeEventListener("click", lock.__wilburHandler);
-  lock.__wilburHandler = (e) => {
+  if (lock.__HumphreyHandler) lock.removeEventListener("click", lock.__HumphreyHandler);
+  lock.__HumphreyHandler = (e) => {
     e.stopPropagation();
     st.locked = !st.locked; showLock();
     if (st.locked && (st.goto || st.returning || st.bubbleUntil)) { hush(); st.goto = null; st.returning = true; }
   };
-  lock.addEventListener("click", lock.__wilburHandler);
-  let dock = doc.querySelector(".wilbur-dock");
+  lock.addEventListener("click", lock.__HumphreyHandler);
+  let dock = doc.querySelector(".Humphrey-dock");
   if (!dock) {
-    dock = doc.createElement("div"); dock.className = "wilbur-dock";
-    dock.innerHTML = "<span>Wilbur</span>";
+    dock = doc.createElement("div"); dock.className = "Humphrey-dock";
+    dock.innerHTML = "<span>Humphrey</span>";
     doc.body.appendChild(dock);
   }
-  win.__wilburMsgs = __MSGS__;
+  win.__HumphreyMsgs = __MSGS__;
   const loopId = (win.__whaleLoopId || 0) + 1;
   win.__whaleLoopId = loopId;
   const reduce = win.matchMedia && win.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -690,74 +696,74 @@ components_whale = """
   }
 
   // speech bubble (one, shared)
-  let bubble = doc.querySelector(".wilbur-bubble");
-  if (!bubble) { bubble = doc.createElement("div"); bubble.className = "wilbur-bubble"; doc.body.appendChild(bubble); }
+  let bubble = doc.querySelector(".Humphrey-bubble");
+  if (!bubble) { bubble = doc.createElement("div"); bubble.className = "Humphrey-bubble"; doc.body.appendChild(bubble); }
   function say(text) {
     bubble.innerHTML = "";
-    const name = doc.createElement("b"); name.textContent = "Wilbur: ";
+    const name = doc.createElement("b"); name.textContent = "Humphrey: ";
     bubble.appendChild(name); bubble.appendChild(doc.createTextNode(text));
     bubble.classList.add("show");
   }
   function hush() { bubble.classList.remove("show"); st.bubbleUntil = 0; st.greeting = false; }
   function unhighlight() {
-    doc.querySelectorAll(".wilbur-highlight").forEach((n) => n.classList.remove("wilbur-highlight"));
+    doc.querySelectorAll(".Humphrey-highlight").forEach((n) => n.classList.remove("Humphrey-highlight"));
   }
 
-  // clicking a card sends Wilbur to it (one listener, always calls the latest handler)
-  win.__wilburOnClick = function (e) {
-    if (e.target.closest && e.target.closest(".whale-swim, .wilbur-dock, .wilbur-lock")) return;
+  // clicking a card sends Humphrey to it (one listener, always calls the latest handler)
+  win.__HumphreyOnClick = function (e) {
+    if (e.target.closest && e.target.closest(".whale-swim, .Humphrey-dock, .Humphrey-lock")) return;
     const card = e.target.closest && e.target.closest('[class*="st-key-card_"]');
-    if (card) win.__wilburVisit(card);
+    if (card) win.__HumphreyVisit(card);
   };
   // the map lives in its own frame, so the page never sees clicks inside it; instead we notice
   // the page losing focus to that frame and treat it as a click on the map card
-  if (win.__wilburBlurHandler) win.removeEventListener("blur", win.__wilburBlurHandler);
-  win.__wilburBlurHandler = () => setTimeout(() => {
+  if (win.__HumphreyBlurHandler) win.removeEventListener("blur", win.__HumphreyBlurHandler);
+  win.__HumphreyBlurHandler = () => setTimeout(() => {
     const a = doc.activeElement;
     if (!a || a.tagName !== "IFRAME") return;
     const card = a.closest('[class*="st-key-card_map"]');
-    if (card) win.__wilburVisit(card);
+    if (card) win.__HumphreyVisit(card);
   }, 0);
-  win.addEventListener("blur", win.__wilburBlurHandler);
+  win.addEventListener("blur", win.__HumphreyBlurHandler);
 
-  win.__wilburVisit = function (card) {
+  win.__HumphreyVisit = function (card) {
     const m = card.className.match(/st-key-card_([A-Za-z0-9_-]+)/);
     if (!m) return;
-    unhighlight(); card.classList.add("wilbur-highlight");   // glow around the clicked card
+    unhighlight(); card.classList.add("Humphrey-highlight");   // glow around the clicked card
     st.highlightUntil = win.performance.now() + 9000;
-    if (!(m[1] in win.__wilburMsgs)) return;
+    if (!(m[1] in win.__HumphreyMsgs)) return;
     if (st.locked || reduce) {                    // locked: he stays home and tells you from there
-      hush(); say(win.__wilburMsgs[m[1]]); st.bubbleUntil = win.performance.now() + 7000;
+      hush(); say(win.__HumphreyMsgs[m[1]]); st.bubbleUntil = win.performance.now() + 7000;
       return;
     }
     st.running = false; st.returning = false; st.goto = m[1]; hush();
   };
   // re-attach on every reload: a listener left over from an old copy of this script stops firing
-  if (win.__wilburClickHandler) doc.removeEventListener("click", win.__wilburClickHandler, true);
-  win.__wilburClickHandler = (e) => win.__wilburOnClick(e);
-  doc.addEventListener("click", win.__wilburClickHandler, true);
+  if (win.__HumphreyClickHandler) doc.removeEventListener("click", win.__HumphreyClickHandler, true);
+  win.__HumphreyClickHandler = (e) => win.__HumphreyOnClick(e);
+  doc.addEventListener("click", win.__HumphreyClickHandler, true);
 
   function wireDock(handler) {
     if (dock.dataset.wired === String(loopId)) return;
-    if (dock.__wilburHandler) dock.removeEventListener("click", dock.__wilburHandler);
-    dock.__wilburHandler = handler; dock.addEventListener("click", handler);
+    if (dock.__HumphreyHandler) dock.removeEventListener("click", dock.__HumphreyHandler);
+    dock.__HumphreyHandler = handler; dock.addEventListener("click", handler);
     dock.dataset.wired = String(loopId);
   }
 
   function el() {
     const w = doc.querySelector(".whale-swim");
     if (w && w.dataset.wired !== String(loopId)) {
-      if (w.__wilburHandler) w.removeEventListener("click", w.__wilburHandler);
-      w.__wilburHandler = () => {           // click Wilbur: say hello at home, or head home if he's out
+      if (w.__HumphreyHandler) w.removeEventListener("click", w.__HumphreyHandler);
+      w.__HumphreyHandler = () => {           // click Humphrey: say hello at home, or head home if he's out
         const busy = st.goto || st.bubbleUntil || st.returning;
         hush(); st.goto = null; st.running = false;
         if (busy) { st.returning = true; }
         else { say(GREETING); st.bubbleUntil = win.performance.now() + 6000; }
       };
-      w.addEventListener("click", w.__wilburHandler);
+      w.addEventListener("click", w.__HumphreyHandler);
       w.dataset.wired = String(loopId);
     }
-    if (w && w.__wilburHandler) wireDock(w.__wilburHandler);
+    if (w && w.__HumphreyHandler) wireDock(w.__HumphreyHandler);
     return w;
   }
 
@@ -780,8 +786,8 @@ components_whale = """
       const hm = home(bw, bh, scrollY), homeX = hm.x, homeY = hm.y;
       if (st.x === null) { st.x = homeX; st.py = homeY; }
       const dt = last === null ? 0 : Math.min((t - last) / 1000, 0.05);
-      if (!win.__wilburGreeted && last !== null) {         // only when the page first loads
-        win.__wilburGreeted = true;
+      if (!win.__HumphreyGreeted && last !== null) {         // only when the page first loads
+        win.__HumphreyGreeted = true;
         say(GREETING); st.bubbleUntil = t + 8000;
       }
 
@@ -796,7 +802,7 @@ components_whale = """
           tx = Math.min(Math.max(tx, PAD), maxX);
           ty = Math.min(Math.max(ty, TOP_LIMIT), Math.max(TOP_LIMIT, maxPY));
           if (moveTo(tx, ty, dt)) {
-            say(win.__wilburMsgs[st.goto] || "");
+            say(win.__HumphreyMsgs[st.goto] || "");
             st.goto = null; st.bubbleUntil = t + 7000;
           }
         }
@@ -808,7 +814,7 @@ components_whale = """
         st.x = homeX; st.py = homeY;
       }
       if (st.highlightUntil && t > st.highlightUntil && !st.goto && !st.bubbleUntil) {
-        unhighlight(); st.highlightUntil = 0;               // glow fades once Wilbur is done
+        unhighlight(); st.highlightUntil = 0;               // glow fades once Humphrey is done
       }
       st.x = Math.min(Math.max(st.x, PAD), Math.max(PAD, maxX));
       st.py = Math.min(Math.max(st.py, TOP_LIMIT), Math.max(TOP_LIMIT, maxPY));
@@ -823,7 +829,7 @@ components_whale = """
       w.style.right = "auto"; w.style.left = st.x + "px"; w.style.top = y + "px";
       w.style.transform = st.vx < 0 ? "scaleX(1)" : "scaleX(-1)";   // the GIF faces left
 
-      if (bubble.classList.contains("show")) {            // bubble above Wilbur, or beside him near the top
+      if (bubble.classList.contains("show")) {            // bubble above Humphrey, or beside him near the top
         const bwid = bubble.offsetWidth, bhgt = bubble.offsetHeight;
         let lx = st.x + bw / 2 - bwid / 2, ly = y - bhgt - 8;
         const atHome = hm.under && Math.abs(st.x - homeX) < 3 && Math.abs(st.py - homeY) < 3;
@@ -851,7 +857,7 @@ components_whale = """
 # (column name/copy row, Format, Autosize) whenever a column menu opens.
 import streamlit.components.v1 as components  # noqa: E402
 
-components.html(components_whale.replace("__MSGS__", wilbur_json), height=0)
+components.html(components_whale.replace("__MSGS__", Humphrey_json), height=0)
 
 components.html("""
 <script>
