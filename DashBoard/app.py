@@ -901,6 +901,17 @@ components.html("""
     const row = lca(sys, dark);
     if (row) row.style.display = "none";
   }
+  // Main menu: hide a single item (e.g. "Clear cache") without touching its neighbours
+  function hideMenuItem(root, label) {
+    let n = findIn(root, label);
+    if (!n) return;
+    // climb to the item row: the highest ancestor that still contains only this label
+    while (n.parentElement && n.parentElement !== root &&
+           (n.parentElement.textContent || "").trim().replace(/\\s*C$/, "") === label) n = n.parentElement;
+    while (n.parentElement && n.parentElement !== root &&
+           !/Rerun|Print/.test(n.parentElement.textContent || "")) n = n.parentElement;
+    n.style.display = "none";
+  }
   // Top-right toolbar: hide the icon-only buttons (favourite, edit, GitHub); keep "Share"
   function hideToolbarIcons() {
     doc.querySelectorAll('[data-testid="stToolbarActions"] button, [data-testid="stToolbarActions"] a')
@@ -915,6 +926,7 @@ components.html("""
         const text = node.textContent || "";
         if (text.includes("Sort ascending")) trim(node);
         if (text.includes("System") && text.includes("Dark")) hideThemePicker(node);
+        if (text.includes("Clear cache")) hideMenuItem(node, "Clear cache");
       }
     }
   });
