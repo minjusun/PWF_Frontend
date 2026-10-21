@@ -634,7 +634,7 @@ try:
         csp = ss.get("calf_species") if ss.get("calf_species") in cc.index else cc.idxmax()
         tcv = d.typical_calves(s_hist[s_hist["species_name"] == csp], s_all["ts"].min(), now)
         Humphrey["calf"] = (f"Most {csp.lower()} calves are spotted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}. "
-                        )
+                          f"Babies on board!")
 except Exception:
     pass   # keep the general messages set above
 
@@ -894,10 +894,27 @@ components.html("""
     const menu = lca(a, b);
     if (menu) prune(menu);
   }
+  // Main menu: hide the System / Light / Dark theme picker so the theme never changes
+  function hideThemePicker(root) {
+    const sys = findIn(root, "System"), dark = findIn(root, "Dark");
+    if (!sys || !dark) return;
+    const row = lca(sys, dark);
+    if (row) row.style.display = "none";
+  }
+  // Top-right toolbar: hide the icon-only buttons (favourite, edit, GitHub); keep "Share"
+  function hideToolbarIcons() {
+    doc.querySelectorAll('[data-testid="stToolbarActions"] button, [data-testid="stToolbarActions"] a')
+      .forEach((b) => { if (!(b.textContent || "").trim()) b.style.display = "none"; });
+  }
+  hideToolbarIcons();
   const observer = new MutationObserver((records) => {
+    hideToolbarIcons();
     for (const r of records) {
       for (const node of r.addedNodes) {
-        if (node.nodeType === 1 && (node.textContent || "").includes("Sort ascending")) trim(node);
+        if (node.nodeType !== 1) continue;
+        const text = node.textContent || "";
+        if (text.includes("Sort ascending")) trim(node);
+        if (text.includes("System") && text.includes("Dark")) hideThemePicker(node);
       }
     }
   });
