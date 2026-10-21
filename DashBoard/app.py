@@ -85,6 +85,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .quote {font-size:2.4rem; font-weight:800; color:#0B2540; text-align:center; letter-spacing:0.02em;
         line-height:1.2; padding:10px 0;}
 .quote-spaced {margin: 30px 0 34px;}
+/* dotted trip route behind the "Make Your Trips Count" quote: start dot, winding path, finish marker */
+.quote-path {background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 200' preserveAspectRatio='none'><path d='M18,160 C90,150 120,70 210,88 C300,106 300,170 390,150 C470,132 470,52 582,42' fill='none' stroke='white' stroke-opacity='0.75' stroke-width='3.5' stroke-linecap='round' stroke-dasharray='0.5 13'/><circle cx='18' cy='160' r='6' fill='white' fill-opacity='0.85'/><circle cx='582' cy='42' r='8' fill='none' stroke='white' stroke-opacity='0.85' stroke-width='3'/><circle cx='582' cy='42' r='3' fill='white' fill-opacity='0.85'/></svg>") center / 100% 100% no-repeat; padding: 34px 0;}
 .quote-on-blue {color:#FFFFFF; text-shadow:0 2px 12px rgba(6,52,90,0.45);}
 /* Dropdowns: see-through blue tint instead of solid white/grey */
 [data-baseweb="select"] > div {background: rgba(42,120,174,0.12) !important;
@@ -403,7 +405,7 @@ with kpi_row:
             st.plotly_chart(sparkline(ms["animals"], h=135, axes=True, x="Month", y="Animals"),
                             config=PLOT_CFG, theme=None, key="spark_animals")
     with k_quote:   # QUOTE 1
-        st.markdown("<div class='quote quote-on-blue quote-spaced'><p style='font-size: 28px;'><i>Make Your Trips Count <br> with Whale and Dolphin Tracker</i></p></div>",
+        st.markdown("<div class='quote quote-on-blue quote-spaced quote-path'><p style='font-size: 28px;'><i>Make Your Trips Count <br> with Whale and Dolphin Tracker</i></p></div>",
             unsafe_allow_html=True)
 
 
