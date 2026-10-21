@@ -468,7 +468,7 @@ with c_activity:
             fig.add_scatter(x=ot["period"], y=ot["Species recorded to date"], name="Recorded to date",
                             mode="lines", line=dict(color=CORAL, width=2, shape="hv"))
         fig.update_layout(barmode="overlay", hovermode="x unified")
-        st.plotly_chart(style(fig, h=185, legend=True, x=gran, y="Trips & sightings" if what == "Trips & sightings" else "Species"),
+        st.plotly_chart(style(fig, h=207, legend=True, x=gran, y="Trips & sightings" if what == "Trips & sightings" else "Species"),
                         config=PLOT_CFG, theme=None, key="activity_chart")
 
 with c_best:
@@ -513,7 +513,7 @@ else:
                             line=dict(color=DEEP, width=2.5), marker=dict(size=6),
                             hovertemplate="%{x}: %{y:.0f}<extra>" + str(now.year) + "</extra>")
             fig.update_xaxes(categoryorder="array", categoryarray=d.MONTHS)
-            st.plotly_chart(style(fig, h=190, legend=True, x="Month", y="Sightings"), config=PLOT_CFG, theme=None, key="season_vs")
+            st.plotly_chart(style(fig, h=210, legend=True, x="Month", y="Sightings"), config=PLOT_CFG, theme=None, key="season_vs")
 
 with c_group:
     with card("group", "Typical group size", "Median animals per sighting"):
@@ -524,7 +524,7 @@ with c_group:
         else:
             fig = px.bar(grp, x="Median", y="Species", orientation="h", color_discrete_sequence=[SEAFOAM])
             fig.update_layout(bargap=0.45)   # more space between the bars
-            st.plotly_chart(style(fig, h=215, x="Median animals per sighting", y="Species"), config=PLOT_CFG, theme=None, key="group_size")
+            st.plotly_chart(style(fig, h=210, x="Median animals per sighting", y="Species"), config=PLOT_CFG, theme=None, key="group_size")
 
 # ── More charts (hidden until the button is pressed) ─────────────────────────
 def toggle_more():
@@ -540,12 +540,12 @@ if ss.get("show_more"):
     with c_hot:
         if is_global:
             with card("hot", "Busiest region by year"):
-                st.dataframe(d.busiest_region_by_year(s_hist), hide_index=True, height=230,
+                st.dataframe(d.busiest_region_by_year(s_hist), hide_index=True, height=249,
                              column_config={"Year": st.column_config.NumberColumn(format="%d"),
                                             "Share of year": None})
         else:
             with card("hot", f"{short_name} vs. Global"):
-                st.dataframe(d.region_rank_by_year(s_hist_all, region_sel), hide_index=True, height=230,
+                st.dataframe(d.region_rank_by_year(s_hist_all, region_sel), hide_index=True, height=249,
                              column_config={"Year": st.column_config.NumberColumn(format="%d"),
                                             "Share of global": st.column_config.ProgressColumn(
                                                 format="percent", min_value=0, max_value=1)})
@@ -576,7 +576,7 @@ if ss.get("show_more"):
                              category_orders={"Month": d.MONTHS})
                 fig.update_traces(hovertemplate="%{x}: about %{y:.0f} calves in a typical year<extra></extra>")
                 fig.update_xaxes(tickangle=0, tickfont=dict(size=10, color="#0B2233"))
-                st.plotly_chart(style(fig, h=160, x="Month", y="Calves (typical month)"), config=PLOT_CFG, theme=None, key="calf_chart")
+                st.plotly_chart(style(fig, h=170, x="Month", y="Calves (typical month)"), config=PLOT_CFG, theme=None, key="calf_chart")
 
 
 # ── Humphrey's facts: what he says when you click each card ────────────────────
