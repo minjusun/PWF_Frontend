@@ -442,7 +442,7 @@ with right:
 
 
 # QUOTE 2!!!!--------------------------------------------------------------------
-st.markdown("<div class='quote quote-on-blue quote-spaced'><p style='font-size: 20px;'><i>&ldquo;By working together, we can track whales and dolphins throughout their ocean home!&rdquo;</i></p></div>",
+st.markdown("<div class='quote quote-on-blue quote-spaced'><p style='font-size: 28px;'><i>&ldquo;By working together, we can track whales and dolphins throughout their ocean home!&rdquo;</i></p></div>",
             unsafe_allow_html=True)
 
 # ── Row line 1: activity over time + best time to see ────────────────────────
