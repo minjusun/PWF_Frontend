@@ -403,8 +403,8 @@ with kpi_row:
             st.plotly_chart(sparkline(ms["animals"], h=135, axes=True, x="Month", y="Animals"),
                             config=PLOT_CFG, theme=None, key="spark_animals")
     with k_quote:   # QUOTE 1
-        st.markdown("<div class='quote quote-on-blue'><i>Make Your Trips Count <br> with Whale and Dolphin Tracker</i></div>",
-                    unsafe_allow_html=True)
+        st.markdown("<div class='quote quote-on-blue quote-spaced'><p style='font-size: 28px;'><i>Make Your Trips Count <br> with Whale and Dolphin Tracker</i></p></div>",
+            unsafe_allow_html=True)
 
 
 # ── Left of map: top 5 contributors (red bars) + active users ────────────────
