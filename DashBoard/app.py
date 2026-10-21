@@ -596,7 +596,7 @@ if len(tc):
 else:
     Humphrey["contrib"] = f"No one has logged sightings {place} yet. Be the first!"
 if len(sp_tab):
-    Humphrey["species_list"] = (f"These are the 5 most-spotted species {place} ({len(sp_all)} in total). "
+    Humphrey["species_list"] = (f"These are the 5 most-spotted species {place} in the Whale and Dolphin Tracker app. "
                               f"The most common is the {sp_tab.iloc[0]['Species'].lower()}.")
 else:
     Humphrey["species_list"] = f"No species spotted {place} yet for this period."
