@@ -87,6 +87,13 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .quote-spaced {margin: 30px 0 34px;}
 /* dotted trip route behind the "Make Your Trips Count" quote: start dot, winding path, finish marker */
 .quote-path {background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 200' preserveAspectRatio='none'><path d='M18,160 C90,150 120,70 210,88 C300,106 300,170 390,150 C470,132 470,52 582,42' fill='none' stroke='white' stroke-opacity='0.75' stroke-width='3.5' stroke-linecap='round' stroke-dasharray='0.5 13'/><circle cx='18' cy='160' r='6' fill='white' fill-opacity='0.85'/><circle cx='582' cy='42' r='8' fill='none' stroke='white' stroke-opacity='0.85' stroke-width='3'/><circle cx='582' cy='42' r='3' fill='white' fill-opacity='0.85'/></svg>") center / 100% 100% no-repeat; padding: 34px 0;}
+/* photo beside the map, with the permit line underneath */
+.side-img {display: block; width: 100%; height: 205px; object-fit: cover; border-radius: 10px;
+           border: 1px solid rgba(255,255,255,0.6); box-shadow: 0 6px 18px rgba(6,26,48,0.22);}
+.side-img-missing {display: flex; align-items: center; justify-content: center; color: #FFFFFF;
+                   background: rgba(255,255,255,0.15); font-size: 0.8rem;}
+.permit {font-size: 0.68rem; line-height: 1.3; color: rgba(255,255,255,0.9); text-align: center;
+         margin-top: 6px; text-shadow: 0 1px 4px rgba(6,26,48,0.45);}
 .quote-on-blue {color:#FFFFFF; text-shadow:0 2px 12px rgba(6,52,90,0.45);}
 /* Dropdowns: see-through blue tint instead of solid white/grey */
 [data-baseweb="select"] > div {background: rgba(42,120,174,0.12) !important;
@@ -213,6 +220,20 @@ def whale_gif_html():
             return (f"<div class='whale-swim'><div class='whale-bob'>"
                     f"<img src='data:{mime};base64,{b64}' alt='Whale'></div></div>")
     return ""
+
+
+def side_image_html():
+    """The photo beside the map, from dashimg.JPG (or .jpg/.jpeg/.png) next to this file."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for name, mime in (("dashimg.JPG", "image/jpeg"), ("dashimg.jpg", "image/jpeg"),
+                       ("dashimg.jpeg", "image/jpeg"), ("dashimg.JPEG", "image/jpeg"),
+                       ("dashimg.png", "image/png"), ("dashimg.PNG", "image/png")):
+        path = os.path.join(here, name)
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode()
+            return f"<img class='side-img' src='data:{mime};base64,{b64}' alt='Whale research photo'>"
+    return "<div class='side-img side-img-missing'>Add dashimg.JPG next to app.py</div>"
 
 
 def snapshot(items):
@@ -439,7 +460,8 @@ with right:
             "Last seen": st.column_config.TextColumn("Last seen", width="small"),
         })
 
-    st.markdown("<div class='quote quote-on-blue quote-spaced'>This is a placeholder for an img</div>",
+    st.markdown(f"{side_image_html()}"
+                "<div class='permit'>Research activities authorized under NMFS/MMPA ESA permit # 21321</div>",
                 unsafe_allow_html=True)
 
 
