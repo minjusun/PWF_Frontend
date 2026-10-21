@@ -634,7 +634,7 @@ try:
         csp = ss.get("calf_species") if ss.get("calf_species") in cc.index else cc.idxmax()
         tcv = d.typical_calves(s_hist[s_hist["species_name"] == csp], s_all["ts"].min(), now)
         Humphrey["calf"] = (f"Most {csp.lower()} calves are spotted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}. "
-                          f"Babies on board!")
+                        )
 except Exception:
     pass   # keep the general messages set above
 
