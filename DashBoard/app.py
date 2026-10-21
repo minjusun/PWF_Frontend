@@ -403,7 +403,7 @@ with kpi_row:
             st.plotly_chart(sparkline(ms["animals"], h=135, axes=True, x="Month", y="Animals"),
                             config=PLOT_CFG, theme=None, key="spark_animals")
     with k_quote:   # QUOTE 1
-        st.markdown("<div class='quote quote-on-blue'><i>&ldquo;This is a placeholder for a quote&rdquo;</i></div>",
+        st.markdown("<div class='quote quote-on-blue'><i>Make Your Trips Count with Whale and Dolphin Tracker</i></div>",
                     unsafe_allow_html=True)
 
 
@@ -442,7 +442,7 @@ with right:
 
 
 # QUOTE 2!!!!--------------------------------------------------------------------
-st.markdown("<div class='quote quote-on-blue quote-spaced'><i>&ldquo;This is a placeholder for a quote&rdquo;</i></div>",
+st.markdown("<div class='quote quote-on-blue quote-spaced'><i>&ldquo;By working together, we can track  whales and dolphins throughout their ocean home!&rdquo;</i></div>",
             unsafe_allow_html=True)
 
 # ── Row line 1: activity over time + best time to see ────────────────────────
