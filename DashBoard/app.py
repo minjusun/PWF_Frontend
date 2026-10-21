@@ -427,8 +427,9 @@ with left:
 
 # ── Right of map: species spotted (red bars) + image placeholder ─────────────
 with right:
-    with card("species_list", f"Species spotted ({s_scope['species_code'].nunique()})"):
-        sp_tab = d.species_table(s_scope, start, end)
+    with card("species_list", "Top 5 Species Spotted"):
+        sp_all = d.species_table(s_scope, start, end)      # every species, most-sighted first
+        sp_tab = sp_all.head(5)
         st.dataframe(sp_tab, hide_index=True, height=181, row_height=29, column_config={   # same size as Top 5 contributors
             "Sightings": st.column_config.ProgressColumn(
                 format="%d", max_value=int(max(1, sp_tab["Sightings"].max() if len(sp_tab) else 1))),
@@ -522,7 +523,8 @@ with c_group:
             st.caption("No group counts recorded.")
         else:
             fig = px.bar(grp, x="Median", y="Species", orientation="h", color_discrete_sequence=[SEAFOAM])
-            st.plotly_chart(style(fig, h=190, x="Median animals per sighting", y="Species"), config=PLOT_CFG, theme=None, key="group_size")
+            fig.update_layout(bargap=0.45)   # more space between the bars
+            st.plotly_chart(style(fig, h=215, x="Median animals per sighting", y="Species"), config=PLOT_CFG, theme=None, key="group_size")
 
 # ── More charts (hidden until the button is pressed) ─────────────────────────
 def toggle_more():
@@ -594,8 +596,8 @@ if len(tc):
 else:
     Humphrey["contrib"] = f"No one has logged sightings {place} yet. Be the first!"
 if len(sp_tab):
-    Humphrey["species_list"] = (f"{len(sp_tab)} species spotted {place}. The most common is the "
-                              f"{sp_tab.iloc[0]['Species'].lower()}.")
+    Humphrey["species_list"] = (f"These are the 5 most-spotted species {place} ({len(sp_all)} in total). "
+                              f"The most common is the {sp_tab.iloc[0]['Species'].lower()}.")
 else:
     Humphrey["species_list"] = f"No species spotted {place} yet for this period."
 if not sp_rank.empty:
