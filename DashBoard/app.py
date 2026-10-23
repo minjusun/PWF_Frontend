@@ -276,7 +276,7 @@ def load(source: str):
         raw = d.load_db(db_url())
     else:
         raw = d.load_demo()
-    s, t = d.prepare(*raw)
+    s, t = d.prepare(*raw, real=(source != "demo"))
     regions, err = load_boundaries()
     if regions is None:
         regions = R.grid_regions(s["lat"], s["lon"])
@@ -557,7 +557,7 @@ else:
 
 with c_group:
     with card("group", "Typical group size", "Median animals per sighting"):
-        grp = (s_scope.groupby("species_name")["animals_total"].median().dropna().sort_values().tail(8)
+        grp = (s_scope[s_scope["animals_total"] > 0].groupby("species_name")["animals_total"].median().dropna().sort_values().tail(8)
                .rename_axis("Species").reset_index(name="Median"))
         if grp.empty:
             st.caption("No group counts recorded.")

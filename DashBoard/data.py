@@ -15,7 +15,7 @@ PROFILE_NAME_COLUMN = "username"  # column in public.profiles that holds a displ
 
 SIGHTINGS_SQL = """
     select sighting_id, creator::text as creator, species_code,
-           latitude, longitude, sighting_date_and_time, track_key, variable_data
+           latitude, longitude, sighting_date_and_time_utc, track_key, variable_data
     from public.sightings
 """
 TRACKS_SQL = """
@@ -47,7 +47,7 @@ def load_db(url: str):
     return s, t, sp, p
 
 
-SIGHTINGS_COLS = "sighting_id,creator,species_code,latitude,longitude,sighting_date_and_time,track_key,variable_data"
+SIGHTINGS_COLS = "sighting_id,creator,species_code,latitude,longitude,sighting_date_and_time_utc,track_key,variable_data"
 TRACKS_COLS = "track_id,creator,start_date_utc,track_key"
 SPECIES_COLS = "code,name,taxonomy"
 
@@ -180,6 +180,155 @@ def load_demo(seed: int = 42):
     return s, t, species, p
 
 
+# ── Real-data filters (same rules as the team's SQL query) ───────────────────
+AUTHORIZED_USERNAMES = {
+    "oceandiscovery", "oceanexplorer", "oceanodyssey", "oceanspirit", "oceanquest", "oceanvoyager",
+    "oceanguardian", "oceanintrigue", "oceanjourney", "oceanlegacy", "oceancelebration",
+    "oceanliberty", "oceanadventurer", "kaiko", "logging", "oceandefender",
+}
+AUTHORIZED_IDS = {
+    "3646ff33-c102-46a1-8ce0-26f40734aac9",
+    "16318a84-434b-4151-b152-f9bba075663a",
+    "9d6db01c-b3f1-451f-94ab-30e37b450528",
+    "2aa9e013-8965-49aa-a82f-a3b12c8059c6",
+    "22a42349-3e9e-416e-88cc-28b983645e94",
+}
+MAX_ANIMALS = 7000   # sightings with more animals than this are dropped as entry errors
+
+_DECIMAL = r"^-?[0-9]+(\.[0-9]+)?$"                 # e.g. 20.7845
+_DEG_MIN = r"^(-?)([0-9]+)[ .]([0-9]+\.[0-9]+)$"    # e.g. "20 47.07" or "20.47.07" (degrees + decimal minutes)
+
+
+def clean_coordinate(col: pd.Series, force_west: bool = False, force_north: bool = False) -> pd.Series:
+    """Decimal degrees, or degrees + decimal minutes -> decimal degrees (rounded to 6 places).
+    force_west=True makes every value negative (west of Greenwich), like -abs() in the SQL.
+    force_north=True makes every value positive (north of the equator)."""
+    s = col.astype("string").str.strip()
+    dec = pd.to_numeric(s.where(s.str.match(_DECIMAL, na=False)), errors="coerce").astype(float)
+    parts = s.str.extract(_DEG_MIN)
+    dm = (pd.to_numeric(parts[1], errors="coerce") + pd.to_numeric(parts[2], errors="coerce") / 60).astype(float)
+    if force_west:
+        out = -dec.abs()
+        out = out.fillna(-dm.abs())
+    else:
+        sign = np.where((parts[0] == "-").fillna(False).astype(bool), -1.0, 1.0)
+        out = dec.fillna(dm * sign)
+    if force_north:
+        out = out.abs()
+    return out.round(6)
+
+
+def authorized_ids(profiles: pd.DataFrame) -> set:
+    names = profiles.get("display_name", pd.Series(dtype=object)).astype(str).str.lower()
+    ok = set(profiles.loc[names.isin(AUTHORIZED_USERNAMES), "id"].astype(str)) if len(profiles) else set()
+    return ok | AUTHORIZED_IDS
+
+
+def apply_real_filters(s: pd.DataFrame, t: pd.DataFrame, profiles: pd.DataFrame):
+    """Authorized accounts only, no test entries, cleaned coordinates."""
+    ids = authorized_ids(profiles)
+    s = s[s["creator"].astype(str).isin(ids)].copy()
+    t = t[t["creator"].astype(str).isin(ids)].copy()
+    vd = s["variable_data"].astype("string")
+    s = s[~vd.str.contains("test", case=False, na=False)].copy()     # drop anything marked as a test
+    s["latitude"] = clean_coordinate(s["latitude"], force_north=True)     # latitudes are never negative
+    s["longitude"] = clean_coordinate(s["longitude"], force_west=True)
+    return s, t
+
+
+# ---------------------------------------------------------------------------
+# Animal-count cleaning (from the team notebook)
+# ---------------------------------------------------------------------------
+
+ANIMAL_COLS = [
+    'animals_adult',
+    'animals_juvenile',
+    'animals_calf',
+    'animals_unknown_age',
+    'animals_total',
+]
+
+
+def coerce_animal_counts(df, cols=ANIMAL_COLS):
+    """Force animal-count columns to numeric, filling anything unparseable (or missing) with 0."""
+    df = df.copy()
+    df[cols] = df[cols].apply(pd.to_numeric, errors='coerce')
+    df[cols] = df[cols].fillna(0)
+    return df
+
+
+def reconcile_animal_totals(
+    df,
+    adult_col='animals_adult',
+    juvenile_col='animals_juvenile',
+    calf_col='animals_calf',
+    unknown_col='animals_unknown_age',
+    total_col='animals_total',
+    known_max=40,       # adult+juvenile+calf below this...
+    total_min=9999,     # ...while total is above this -> treat total as a typo
+):
+    """
+    Reconcile animals_total against the sum of its parts.
+
+    - total < sum(parts): raise total to match the sum.
+    - total > sum(parts) AND adult+juvenile+calf < known_max AND total > total_min:
+        total is treated as an entry error -> reset total to sum(parts).
+    - total > sum(parts) otherwise: add the difference to animals_unknown_age.
+
+    Returns (df, mismatched) -- corrected copy, and one row per changed record.
+    """
+    df = df.copy()
+    known_cols = [adult_col, juvenile_col, calf_col]
+    part_cols = known_cols + [unknown_col]
+    cols = part_cols + [total_col]
+
+    known_sum = df[known_cols].sum(axis=1)
+    parts_sum = df[part_cols].sum(axis=1)
+
+    mismatch_mask = parts_sum != df[total_col]
+    under = mismatch_mask & (df[total_col] < parts_sum)
+    over = mismatch_mask & (df[total_col] > parts_sum)
+    reset_total = over & (known_sum < known_max) & (df[total_col] > total_min)
+    fill_unknown = over & ~reset_total
+
+    before = df.loc[mismatch_mask, cols].copy()
+    df.loc[under, total_col] = parts_sum[under]
+    df.loc[reset_total, total_col] = parts_sum[reset_total]
+    df.loc[fill_unknown, unknown_col] += (df[total_col] - parts_sum)[fill_unknown]
+    after = df.loc[mismatch_mask, cols]
+
+    mismatched = before.add_suffix('_before').join(after.add_suffix('_after'))
+    mismatched['known_sum'] = known_sum[mismatch_mask]
+    mismatched['parts_sum_before'] = parts_sum[mismatch_mask]
+    mismatched['fix'] = np.select(
+        [under[mismatch_mask], reset_total[mismatch_mask]],
+        ['raised_total', 'reset_total_to_parts'],
+        default='added_to_unknown',
+    )
+    id_cols = [c for c in ['sighting_id', 'sighting_date_and_time_utc'] if c in df.columns]
+    mismatched = df.loc[mismatch_mask, id_cols].join(mismatched)
+    return df, mismatched
+
+
+def is_marine_debris(df):
+    """True for marine-debris reports (matched on the species name or code, any capitals)."""
+    name = df.get("species_name", pd.Series("", index=df.index)).astype("string")
+    code = df.get("species_code", pd.Series("", index=df.index)).astype("string")
+    return (name.str.contains("debris", case=False, na=False) |
+            code.str.contains("debris", case=False, na=False) |
+            code.str.upper().eq("DEB").fillna(False))          # your species table: DEB = Marine Debris
+
+
+def drop_zero_sightings(df, total_col='animals_total'):
+    """Drop rows with no animals recorded at all -- except marine debris, which has no animals."""
+    return df.loc[(df[total_col] > 0) | is_marine_debris(df)].copy()
+
+
+def drop_large_counts(df, total_col='animals_total', max_total=MAX_ANIMALS):
+    """The only rows removed for their counts: sightings with more than max_total animals."""
+    return df.loc[df[total_col] <= max_total].copy()
+
+
 # ── Cleaning ─────────────────────────────────────────────────────────────────
 def _parse_json(x):
     if isinstance(x, dict):
@@ -212,18 +361,26 @@ def _parse_ts(col: pd.Series) -> pd.Series:
     return pd.to_datetime(col, errors="coerce", utc=True, format="mixed").dt.tz_localize(None)
 
 
-def prepare(s_raw, t_raw, species, profiles):
+def prepare(s_raw, t_raw, species, profiles, real=False):
     s = s_raw.copy()
+    t_raw = t_raw.copy()
+    if real:                                   # authorized accounts, no tests, cleaned coordinates
+        s, t_raw = apply_real_filters(s, t_raw, profiles)
     s["lat"] = pd.to_numeric(s["latitude"], errors="coerce")
     s["lon"] = pd.to_numeric(s["longitude"], errors="coerce")
-    s["ts"] = _parse_ts(s["sighting_date_and_time"])
+    time_col = "sighting_date_and_time_utc" if "sighting_date_and_time_utc" in s.columns else "sighting_date_and_time"
+    s["ts"] = _parse_ts(s[time_col])
     s = s.dropna(subset=["lat", "lon", "ts"])
     s = s[s["lat"].between(-90, 90) & s["lon"].between(-180, 180)].copy()
     s = s.join(parse_variable_data(s["variable_data"])).drop(columns=["variable_data"])
+    s = coerce_animal_counts(s)                # counts -> numbers, blanks -> 0
+    s, _ = reconcile_animal_totals(s)          # make animals_total = sum of its parts
+    s = drop_large_counts(s)                   # drop sightings with more than 7000 animals
 
     sp = species.rename(columns={"code": "species_code", "name": "species_name"})[["species_code", "species_name"]]
     s = s.merge(sp, on="species_code", how="left")
     s["species_name"] = s["species_name"].fillna(s["species_code"]).fillna("Unknown")
+    s = drop_zero_sightings(s)                 # drop sightings with no animals recorded (except marine debris)
     s["year"] = s["ts"].dt.year
     s["month"] = s["ts"].dt.month
     s["creator"] = s["creator"].astype(str)
