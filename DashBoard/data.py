@@ -47,6 +47,40 @@ def load_db(url: str):
     return s, t, sp, p
 
 
+SIGHTINGS_COLS = "sighting_id,creator,species_code,latitude,longitude,sighting_date_and_time,track_key,variable_data"
+TRACKS_COLS = "track_id,creator,start_date_utc,track_key"
+SPECIES_COLS = "code,name,taxonomy"
+
+
+def load_api(url: str, key: str, page: int = 1000):
+    """Read the four tables with the Supabase API (project URL + API key).
+
+    Supabase returns at most 1000 rows per request, so each table is fetched in pages."""
+    from supabase import create_client
+
+    sb = create_client(url, key)
+
+    def fetch(table, cols, order):
+        rows, start = [], 0
+        while True:
+            batch = (sb.table(table).select(cols).order(order)
+                     .range(start, start + page - 1).execute().data) or []
+            rows.extend(batch)
+            if len(batch) < page:
+                break
+            start += page
+        return pd.DataFrame(rows, columns=cols.split(","))
+
+    s = fetch("sightings", SIGHTINGS_COLS, "sighting_id")
+    t = fetch("tracks", TRACKS_COLS, "track_id")
+    sp = fetch("species", SPECIES_COLS, "code")
+    try:  # profiles is optional — fall back to recorder_name / uuid
+        p = fetch("profiles", f"id,{PROFILE_NAME_COLUMN}", "id").rename(columns={PROFILE_NAME_COLUMN: "display_name"})
+    except Exception:
+        p = pd.DataFrame(columns=["id", "display_name"])
+    return s, t, sp, p
+
+
 # ── Demo data (same shape as the real tables) ────────────────────────────────
 def load_demo(seed: int = 42):
     rng = np.random.default_rng(seed)

@@ -6,3 +6,4 @@ folium>=0.17
 streamlit-folium>=0.22
 sqlalchemy>=2.0
 psycopg2-binary>=2.9
+supabase>=2.0

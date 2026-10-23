@@ -242,11 +242,22 @@ def snapshot(items):
     st.markdown(f"<div class='snap'>{cells}</div>", unsafe_allow_html=True)
 
 
-def db_url():
+def secret(name):
     try:
-        return st.secrets.get("db_url")
+        return st.secrets.get(name)
     except Exception:
         return None
+
+
+def db_url():
+    return secret("db_url")
+
+
+def data_source():
+    """'api' if Supabase URL + key are in secrets, 'live' for a database connection string, else 'demo'."""
+    if secret("supabase_url") and secret("supabase_key"):
+        return "api"
+    return "live" if db_url() else "demo"
 
 
 @st.cache_resource(show_spinner="Loading region boundaries (first run downloads them once)…")
@@ -259,7 +270,12 @@ def load_boundaries():
 
 @st.cache_data(ttl=600, show_spinner="Loading sightings and trips…")
 def load(source: str):
-    raw = d.load_db(db_url()) if source == "live" else d.load_demo()
+    if source == "api":
+        raw = d.load_api(secret("supabase_url"), secret("supabase_key"))
+    elif source == "live":
+        raw = d.load_db(db_url())
+    else:
+        raw = d.load_demo()
     s, t = d.prepare(*raw)
     regions, err = load_boundaries()
     if regions is None:
@@ -272,7 +288,7 @@ def load(source: str):
     return s, t, [r for r in regions if r["name"] in used], err
 
 
-s_all, t_all, region_shapes, boundary_err = load("live" if db_url() else "demo")
+s_all, t_all, region_shapes, boundary_err = load(data_source())
 shape_by_name = {r["name"]: r for r in region_shapes}
 now = pd.Timestamp.now()
 ss = st.session_state
