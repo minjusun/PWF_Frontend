@@ -3,6 +3,7 @@ Data layer for the Whale & Dolphin Tracker dashboard.
 Pure pandas — no Streamlit imports, so it can be tested on its own.
 """
 import json
+import re
 import uuid
 
 import numpy as np
@@ -52,13 +53,27 @@ TRACKS_COLS = "track_id,creator,start_date_utc,track_key"
 SPECIES_COLS = "code,name,taxonomy"
 
 
+def clean_supabase_url(url: str) -> str:
+    """Accept the common copy/paste variants and return https://<ref>.supabase.co"""
+    u = str(url).strip().strip('"').strip("'").rstrip("/")
+    m = re.search(r"supabase\.com/dashboard/project/([a-z0-9]+)", u)     # pasted the dashboard page address
+    if m:
+        return f"https://{m.group(1)}.supabase.co"
+    for suffix in ("/rest/v1", "/rest/v1/", "/auth/v1", "/storage/v1"):
+        if u.endswith(suffix.rstrip("/")):
+            u = u[: -len(suffix.rstrip("/"))].rstrip("/")
+    if not u.startswith("http"):
+        u = "https://" + u
+    return u
+
+
 def load_api(url: str, key: str, page: int = 1000):
     """Read the four tables with the Supabase API (project URL + API key).
 
     Supabase returns at most 1000 rows per request, so each table is fetched in pages."""
     from supabase import create_client
 
-    sb = create_client(url, key)
+    sb = create_client(clean_supabase_url(url), key.strip())
 
     def fetch(table, cols, order):
         rows, start = [], 0
@@ -193,7 +208,7 @@ AUTHORIZED_IDS = {
     "2aa9e013-8965-49aa-a82f-a3b12c8059c6",
     "22a42349-3e9e-416e-88cc-28b983645e94",
 }
-MAX_ANIMALS = 7000   # sightings with more animals than this are dropped as entry errors
+MAX_ANIMALS = 899    # sightings with more animals than this are dropped as entry errors
 
 _DECIMAL = r"^-?[0-9]+(\.[0-9]+)?$"                 # e.g. 20.7845
 _DEG_MIN = r"^(-?)([0-9]+)[ .]([0-9]+\.[0-9]+)$"    # e.g. "20 47.07" or "20.47.07" (degrees + decimal minutes)
@@ -231,8 +246,14 @@ def apply_real_filters(s: pd.DataFrame, t: pd.DataFrame, profiles: pd.DataFrame)
     t = t[t["creator"].astype(str).isin(ids)].copy()
     vd = s["variable_data"].astype("string")
     s = s[~vd.str.contains("test", case=False, na=False)].copy()     # drop anything marked as a test
-    s["latitude"] = clean_coordinate(s["latitude"], force_north=True)     # latitudes are never negative
-    s["longitude"] = clean_coordinate(s["longitude"], force_west=True)
+    lat = clean_coordinate(s["latitude"])
+    lon = clean_coordinate(s["longitude"])
+    # Hawaii entries often lose their signs ("20.8, 156.5"): anything in the Hawaii band is put back to
+    # north latitude / west longitude. Everywhere else (e.g. Australia: south latitude, east longitude)
+    # keeps the signs as entered.
+    hawaii = lat.abs().between(18, 23) & lon.abs().between(154, 161)   # main Hawaiian islands
+    s["latitude"] = lat.where(~hawaii, lat.abs())
+    s["longitude"] = lon.where(~hawaii, -lon.abs())
     return s, t
 
 
@@ -375,11 +396,12 @@ def prepare(s_raw, t_raw, species, profiles, real=False):
     s = s.join(parse_variable_data(s["variable_data"])).drop(columns=["variable_data"])
     s = coerce_animal_counts(s)                # counts -> numbers, blanks -> 0
     s, _ = reconcile_animal_totals(s)          # make animals_total = sum of its parts
-    s = drop_large_counts(s)                   # drop sightings with more than 7000 animals
+    s = drop_large_counts(s)                   # drop sightings with more than 900 animals
 
     sp = species.rename(columns={"code": "species_code", "name": "species_name"})[["species_code", "species_name"]]
     s = s.merge(sp, on="species_code", how="left")
     s["species_name"] = s["species_name"].fillna(s["species_code"]).fillna("Unknown")
+    s = s[s["species_name"].astype(str).str.strip().str.lower() != "none"].copy()   # hide species named "None"
     s = drop_zero_sightings(s)                 # drop sightings with no animals recorded (except marine debris)
     s["year"] = s["ts"].dt.year
     s["month"] = s["ts"].dt.month
@@ -552,8 +574,10 @@ def season_centre_doy(ts: pd.Series) -> float:
 def over_time(s, t, freq="M") -> pd.DataFrame:
     sp = s["ts"].dt.to_period(freq).dt.start_time
     tp = t["ts"].dt.to_period(freq).dt.start_time
-    a = s.assign(period=sp).groupby("period").agg(Sightings=("sighting_id", "count"),
-                                                   Species=("species_code", "nunique"))
+    animals = s[~is_marine_debris(s)]
+    a = s.assign(period=sp).groupby("period").agg(Sightings=("sighting_id", "count"))
+    a["Species"] = animals.assign(period=sp[animals.index]).groupby("period")["species_code"].nunique()
+    a["Species"] = a["Species"].fillna(0)
     b = t.assign(period=tp).groupby("period")["track_id"].nunique().rename("Trips")
     out = a.join(b, how="outer").fillna(0).astype(int).sort_index()
     first_seen = s.groupby("species_code")["ts"].min().dt.to_period(freq).dt.start_time
@@ -627,6 +651,20 @@ def this_year_vs_past(sd, data_start, now) -> pd.DataFrame:
     avg = (past.groupby("month").size().reindex(range(1, 13), fill_value=0) / cover)
     return pd.DataFrame({"Month": MONTHS, "This year": cur.reindex(range(1, 13)).values,
                          "Past average": avg.values})
+
+
+def year_vs_others(sd, data_start, data_end, year) -> pd.DataFrame:
+    """Monthly sightings in `year` next to the average of every other year (fair to partial years)."""
+    start, end = pd.Timestamp(data_start), pd.Timestamp(data_end)
+    last_month = end.month if year == end.year else 12
+    cur = sd[sd["year"] == year].groupby("month").size().reindex(range(1, last_month + 1), fill_value=0)
+    months = pd.period_range(start, end, freq="M")
+    cover_all = pd.Series(months.month).value_counts().reindex(range(1, 13), fill_value=0)
+    cover_yr = pd.Series(months[months.year == year].month).value_counts().reindex(range(1, 13), fill_value=0)
+    cover = (cover_all - cover_yr).replace(0, np.nan)
+    others = sd[sd["year"] != year].groupby("month").size().reindex(range(1, 13), fill_value=0)
+    return pd.DataFrame({"Month": MONTHS, "Selected year": cur.reindex(range(1, 13)).values,
+                         "Other years (average)": (others / cover).values})
 
 
 def peak_month_by_year(sd, data_start, data_end) -> pd.DataFrame:

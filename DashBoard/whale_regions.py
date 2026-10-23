@@ -142,3 +142,53 @@ def to_geojson(regions, counts, selected=None):
             "geometry": {"type": "MultiPolygon", "coordinates": [[ring] for ring in r["rings"]]},
         })
     return {"type": "FeatureCollection", "features": feats}
+
+
+
+# ── Land mask: drop sightings that fall on land ─────────────────────────────
+# Natural Earth land + minor islands (public domain, 1:10m detail), downloaded once next to this file.
+LAND_URLS = [
+    "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_land.geojson",
+    "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_minor_islands.geojson",
+]
+LAND_BUFFER_KM = 1.0   # only drop points more than this far inside the coastline (map coastlines are
+                       # simplified, so harbour and near-shore sightings can look like they're on land)
+
+
+def load_land():
+    """Returns (geometries, spatial index) for all land polygons, or raises if unavailable."""
+    from shapely import STRtree
+    from shapely.geometry import shape
+
+    geoms = []
+    for url in LAND_URLS:
+        path = os.path.join(HERE, url.rsplit("/", 1)[-1])
+        try:
+            if not os.path.exists(path):
+                urllib.request.urlretrieve(url, path)
+            with open(path, encoding="utf-8") as f:
+                gj = json.load(f)
+            geoms += [shape(ft["geometry"]) for ft in gj["features"] if ft.get("geometry")]
+        except Exception:
+            continue          # one missing file is fine; the other still filters most land
+    if not geoms:
+        raise RuntimeError("no land data")
+    return geoms, STRtree(geoms)
+
+
+def inland_mask(lat, lon, land, buffer_km=LAND_BUFFER_KM):
+    """True for points that are on land and more than buffer_km inside the coastline."""
+    import shapely
+
+    geoms, tree = land
+    pts = shapely.points(np.asarray(lon, float), np.asarray(lat, float))
+    mask = np.zeros(len(pts), dtype=bool)
+    hits = tree.query(pts, predicate="intersects")        # (point index, land polygon index) pairs
+    if hits.size == 0:
+        return mask
+    pi, gi = hits
+    edges = {g: geoms[g].boundary for g in set(gi.tolist())}
+    dist_deg = shapely.distance(pts[pi], np.array([edges[g] for g in gi], dtype=object))
+    deep = dist_deg > buffer_km / 111.0                   # ~111 km per degree
+    mask[pi[deep]] = True
+    return mask

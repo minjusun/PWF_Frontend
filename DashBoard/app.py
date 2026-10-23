@@ -108,6 +108,13 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 [class*="st-key-card"] {transition: box-shadow .3s ease, border-color .3s ease;}
 [class*="st-key-card"].Humphrey-highlight {border-color: #4FB0A5 !important;
     box-shadow: 0 0 0 3px rgba(79,176,165,0.55), 0 0 26px rgba(79,176,165,0.45) !important;}
+/* Tables stay the size we set: hide the drag-to-resize handles on their edges and corner */
+[data-testid="stDataFrameResizable"] div[style*="row-resize"],
+[data-testid="stDataFrameResizable"] div[style*="col-resize"],
+[data-testid="stDataFrameResizable"] div[style*="se-resize"],
+[data-testid="stDataFrameResizable"] div[style*="ns-resize"],
+[data-testid="stDataFrameResizable"] div[style*="ew-resize"],
+[data-testid="stDataFrameResizable"] div[style*="nwse-resize"] {display: none !important; pointer-events: none !important;}
 /* No fullscreen (enlarge) button on tables and charts */
 [data-testid="stElementToolbar"] button[aria-label*="ullscreen" i],
 [data-testid="stElementToolbar"] button[title*="ullscreen" i],
@@ -268,7 +275,15 @@ def load_boundaries():
         return None, str(e)
 
 
-@st.cache_data(ttl=600, show_spinner="Loading sightings and trips…")
+@st.cache_resource(show_spinner="Loading coastlines (first run downloads them once)…")
+def load_land():
+    try:
+        return R.load_land()
+    except Exception:          # offline or shapely missing: keep every sighting rather than fail
+        return None
+
+
+@st.cache_data(ttl=3600, show_spinner="Loading sightings and trips…")   # fetch fresh data at most once an hour
 def load(source: str):
     if source == "api":
         raw = d.load_api(secret("supabase_url"), secret("supabase_key"))
@@ -277,6 +292,13 @@ def load(source: str):
     else:
         raw = d.load_demo()
     s, t = d.prepare(*raw, real=(source != "demo"))
+    land = load_land()
+    if land is not None and len(s):            # only keep sightings on the water
+        pts = s[["lat", "lon"]].round(4).drop_duplicates()
+        pts["inland"] = R.inland_mask(pts["lat"], pts["lon"], land)
+        s = (s.assign(_la=s["lat"].round(4), _lo=s["lon"].round(4))
+              .merge(pts.rename(columns={"lat": "_la", "lon": "_lo"}), on=["_la", "_lo"], how="left"))
+        s = s[~s["inland"].fillna(False).astype(bool)].drop(columns=["_la", "_lo", "inland"])
     regions, err = load_boundaries()
     if regions is None:
         regions = R.grid_regions(s["lat"], s["lon"])
@@ -504,11 +526,11 @@ with c_activity:
             fig.add_scatter(x=ot["period"], y=ot["Sightings"], name="Sightings", mode="lines",
                             line=dict(color=DEEP, width=2))
         else:
-            fig.add_bar(x=ot["period"], y=ot["Species"], name="Seen in period", marker_color=MIST)
-            fig.add_scatter(x=ot["period"], y=ot["Species recorded to date"], name="Recorded to date",
-                            mode="lines", line=dict(color=CORAL, width=2, shape="hv"))
+            fig.add_bar(x=ot["period"], y=ot["Species"], name=f"Different species seen each {gran.lower()}",
+                        marker_color=TEAL,
+                        hovertemplate="%{x|%b %Y}: %{y} different species<extra></extra>")
         fig.update_layout(barmode="overlay", hovermode="x unified")
-        st.plotly_chart(style(fig, h=207, legend=True, x=gran, y="Trips & sightings" if what == "Trips & sightings" else "Species"),
+        st.plotly_chart(style(fig, h=207, legend=True, x=gran, y="Trips & sightings" if what == "Trips & sightings" else "Different species"),
                         config=PLOT_CFG, theme=None, key="activity_chart")
 
 with c_best:
@@ -543,17 +565,27 @@ if sp_rank.empty:
         st.info("No sightings here yet. Pick another region or widen the filters.")
 else:
     with c_year:
-        with card("curve", f"{now.year} so far vs past years", f"{sel}, sightings per month"):
-            ty = d.this_year_vs_past(sd, data_start, now)
+        with card("curve", "One year vs other years", "Sightings per month"):
+            cc1, cc2 = st.columns([3, 2])
+            sp_opts = sp_rank.index.tolist()
+            if ss.get("curve_species") not in sp_opts:
+                ss["curve_species"] = sel                     # start on the Best time to see species
+            curve_sel = cc1.selectbox("Species", sp_opts, key="curve_species", label_visibility="collapsed")
+            sd_c = s_hist[s_hist["species_name"] == curve_sel]
+            yr_opts = sorted(sd_c["year"].unique().tolist(), reverse=True) or [now.year]
+            if ss.get("curve_year") not in yr_opts:
+                ss["curve_year"] = yr_opts[0]                  # newest year with sightings
+            curve_year = cc2.selectbox("Year", yr_opts, key="curve_year", label_visibility="collapsed")
+            ty = d.year_vs_others(sd_c, data_start, now, curve_year)
             fig = go.Figure()
-            fig.add_scatter(x=ty["Month"], y=ty["Past average"], name="Past years (average)", mode="lines",
+            fig.add_scatter(x=ty["Month"], y=ty["Other years (average)"], name="Other years (average)", mode="lines",
                             line=dict(color=MIST, width=3, dash="dot"),
-                            hovertemplate="%{x}: about %{y:.0f}<extra>Past years</extra>")
-            fig.add_scatter(x=ty["Month"], y=ty["This year"], name=str(now.year), mode="lines+markers",
+                            hovertemplate="%{x}: about %{y:.0f}<extra>Other years</extra>")
+            fig.add_scatter(x=ty["Month"], y=ty["Selected year"], name=str(curve_year), mode="lines+markers",
                             line=dict(color=DEEP, width=2.5), marker=dict(size=6),
-                            hovertemplate="%{x}: %{y:.0f}<extra>" + str(now.year) + "</extra>")
+                            hovertemplate="%{x}: %{y:.0f}<extra>" + str(curve_year) + "</extra>")
             fig.update_xaxes(categoryorder="array", categoryarray=d.MONTHS)
-            st.plotly_chart(style(fig, h=210, legend=True, x="Month", y="Sightings"), config=PLOT_CFG, theme=None, key="season_vs")
+            st.plotly_chart(style(fig, h=172, legend=True, x="Month", y="Sightings"), config=PLOT_CFG, theme=None, key="season_vs")
 
 with c_group:
     with card("group", "Typical group size", "Median animals per sighting"):
@@ -643,8 +675,8 @@ else:
 if not sp_rank.empty:
     best_txt = f" They show up most in {months_txt}." if len(top3) else ""
     Humphrey["season"] = f"Want to see {d.plural(sel).lower()}?{best_txt}"
-    Humphrey["curve"] = (f"The dark line is {now.year}, the dotted line is the past-years average. "
-                       f"Above the dots means a busier month than usual!")
+    Humphrey["curve"] = (f"The dark line is {ss.get('curve_year', now.year)}, the dotted line is the average of "
+                       f"all other years. Above the dots means a busier month than usual!")
 if not grp.empty:
     Humphrey["group"] = (f"{d.plural(grp.iloc[-1]['Species'])} travel in the biggest groups, about "
                        f"{grp.iloc[-1]['Median']:.0f} per sighting.")
