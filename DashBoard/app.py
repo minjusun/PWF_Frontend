@@ -17,7 +17,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 import data as d
-import regions as R
+import whale_regions as R   # region boundaries (named so it can't clash with other "regions" modules)
 
 st.set_page_config(page_title="Whale & Dolphin Tracker Dashboard", layout="wide", initial_sidebar_state="collapsed")
 
