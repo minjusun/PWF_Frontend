@@ -240,10 +240,7 @@ def authorized_ids(profiles: pd.DataFrame) -> set:
 
 
 def apply_real_filters(s: pd.DataFrame, t: pd.DataFrame, profiles: pd.DataFrame):
-    """Authorized accounts only, no test entries, cleaned coordinates."""
-    ids = authorized_ids(profiles)
-    s = s[s["creator"].astype(str).isin(ids)].copy()
-    t = t[t["creator"].astype(str).isin(ids)].copy()
+    """No test entries, cleaned coordinates."""
     vd = s["variable_data"].astype("string")
     s = s[~vd.str.contains("test", case=False, na=False)].copy()     # drop anything marked as a test
     lat = clean_coordinate(s["latitude"])
@@ -255,7 +252,6 @@ def apply_real_filters(s: pd.DataFrame, t: pd.DataFrame, profiles: pd.DataFrame)
     s["latitude"] = lat.where(~hawaii, lat.abs())
     s["longitude"] = lon.where(~hawaii, -lon.abs())
     return s, t
-
 
 # ---------------------------------------------------------------------------
 # Animal-count cleaning (from the team notebook)
