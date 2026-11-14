@@ -1,10 +1,10 @@
-streamlit>=1.40
-pandas>=2.1
+# Packages map_api.py needs on Render.
+# If this folder already has a requirements.txt for the Streamlit dashboard,
+# add any of these lines that are missing instead of replacing that file.
+flask
+gunicorn
+pandas
 numpy
-plotly>=5.20
-folium>=0.17
-streamlit-folium>=0.22
-sqlalchemy>=2.0
-psycopg2-binary>=2.9
-supabase>=2.0
-shapely>=2.0
+pymongo
+supabase
+shapely

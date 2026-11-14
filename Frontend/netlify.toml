@@ -1,0 +1,13 @@
+# Netlify settings for the map front end.
+# Replace YOUR-SERVICE with your Render service name (the part before .onrender.com).
+
+[build]
+  publish = "."
+
+# Send the map's API calls to the Flask server on Render.
+# The browser only ever talks to your Netlify site, so no CORS setup is needed.
+[[redirects]]
+  from = "/api/*"
+  to = "https://YOUR-SERVICE.onrender.com/api/:splat"
+  status = 200
+  force = true

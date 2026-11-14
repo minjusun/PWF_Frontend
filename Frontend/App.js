@@ -639,8 +639,6 @@ let map = null;
 let pointsGeojson = null;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-const EXCLUDE_SEASON_YEARS = new Set([2011, 2019, 2026]);
-
 const HEATMAP_MAX_ZOOM = 9;
 
 function getFeatureDate(feature) {
@@ -650,11 +648,6 @@ function getFeatureDate(feature) {
 
 function formatDate(d) {
     return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-function getSeasonYear(d) {
-    const month = d.getUTCMonth() + 1;
-    return month === 12 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;
 }
 
 function toDayMs(d) {
@@ -750,14 +743,6 @@ async function loadPointsAndComputeDateRange() {
             continue;
         }
 
-        if (EXCLUDE_SEASON_YEARS.has(getSeasonYear(d))) {
-            feature.properties._day_ms = null;
-            feature.properties._ts_ms = null;
-            feature.properties._year = null;
-            feature.properties._month = null;
-            continue;
-        }
-
         const dayMs = toDayMs(d);
         feature.properties._day_ms = dayMs;
         feature.properties._ts_ms = d.getTime(); // exact sighting time, used by the timelapse
@@ -826,6 +811,7 @@ function updateMapFilter() {
     if (map.getLayer('heatmap-layer')) {
         map.setFilter('heatmap-layer', filter);
     }
+    updateSiteStats();
 }
 
 function toggleSpeciesActive(code) {
@@ -936,33 +922,85 @@ function setupGrid() {
     updateGrid();
 }
 
-function updateSiteStats() {
-    if (!pointsGeojson) return;
+// ==== Corner stats: follow the time slider ====
+// "Sightings to date" and "Animals total" add up every sighting from the start of the data
+// up to the point the slider (or the timelapse) has reached. The third number counts the
+// selected month or day. Like the map, all three follow the species filter.
+function updateSiteStats(cursorMs) {
+    if (!pointsGeojson || !monthBuckets.length) return;
 
     const totalToDateEl = document.getElementById('totalSightingsToDate');
     const animalsTotalEl = document.getElementById('animalsTotal');
-    const todayEl = document.getElementById('sightingsToday');
-    if (!totalToDateEl || !todayEl) return;
+    const onDateEl = document.getElementById('sightingsOnDate');
+    const onDateLabelEl = document.getElementById('sightingsOnDateLabel');
+    if (!totalToDateEl || !onDateEl) return;
 
-    const validFeatures = pointsGeojson.features.filter(
-        f => f.properties._day_index !== null && f.properties._day_index !== undefined
-    );
+    const showBlank = () => {
+        totalToDateEl.textContent = '--';
+        if (animalsTotalEl) animalsTotalEl.textContent = '--';
+        onDateEl.textContent = '--';
+    };
+    if (sliderMode === 'day' && computeYearDayRange(currentYearFilter).minMs === null) {
+        showBlank();
+        return;
+    }
 
-    const totalValid = validFeatures.length;
+    const slider = document.getElementById('timeSlider');
+    const pos = timelapseActive ? playbackPos : parseInt(slider.value, 10);
+    const index = Math.max(0, Math.min(Math.floor(pos), parseInt(slider.max, 10)));
+    const periodStart = stepStartMs(index);
+    const periodEnd = stepStartMs(index + 1);
+    // Count everything before this moment: the end of the selected month/day, or the
+    // timelapse's current moment while it plays.
+    const upTo = (cursorMs !== undefined && cursorMs !== null)
+        ? Math.min(cursorMs + 1, periodEnd)
+        : periodEnd;
 
-    const animalsTotalSum = validFeatures.reduce((sum, f) => {
-        const val = Number(f.properties.animals_total);
-        return sum + (Number.isFinite(val) ? val : 0);
-    }, 0);
+    const all = getTimelapseFeatures();          // dated sightings, sorted by time
+    const end = lowerBoundByTime(all, upTo);
+    let total = 0;
+    let animals = 0;
+    let inPeriod = 0;
+    for (let i = 0; i < end; i++) {
+        const f = all[i];
+        if (!speciesPasses(f)) continue;
+        total++;
+        const n = Number(f.properties.animals_total);
+        if (Number.isFinite(n)) animals += n;
+        if (f.properties._ts_ms >= periodStart) inPeriod++;
+    }
 
-    const latestDayIndex = totalDays;
-    const todayCount = pointsGeojson.features.filter(
-        f => f.properties._day_index === latestDayIndex
-    ).length;
+    totalToDateEl.textContent = total;
+    if (animalsTotalEl) animalsTotalEl.textContent = animals;
+    onDateEl.textContent = inPeriod;
+    if (onDateLabelEl) {
+        // Same date text as "Selected Date" under the slider, so the two always agree.
+        const when = document.getElementById('selectedTime').textContent;
+        onDateLabelEl.textContent = `Sightings ${sliderMode === 'month' ? 'in' : 'on'} ${when}`;
+    }
+}
 
-    totalToDateEl.textContent = totalValid;
-    if (animalsTotalEl) animalsTotalEl.textContent = animalsTotalSum;
-    todayEl.textContent = todayCount;
+// ==== "Today" box next to the Spin button ====
+// Sightings recorded on today's date (the visitor's own calendar day), all species.
+function updateTodayBox() {
+    const valueEl = document.getElementById('todayCount');
+    const box = document.getElementById('today-box');
+    if (!valueEl || !pointsGeojson) return;
+
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+
+    let n = 0;
+    for (const feature of pointsGeojson.features) {
+        const d = getFeatureDate(feature);
+        if (d && !isNaN(d) && d >= start && d < end) n++;
+    }
+    valueEl.textContent = `${n} sighting${n === 1 ? '' : 's'}`;
+    if (box) box.title = `Sightings recorded today, ${start.toLocaleDateString(undefined, {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    })}`;
 }
 
 function populateYearDropdown() {
@@ -1185,6 +1223,8 @@ function renderTimelapseFrame() {
     document.getElementById('selectedTime').textContent = (sliderMode === 'month' && bucket)
         ? formatMonthYear(bucket)
         : formatCursorDate(cursor);
+
+    updateSiteStats(cursor);
 }
 
 function speciesPasses(f) {
@@ -1345,6 +1385,8 @@ function togglePlayback() {
 }
 
 function initializeTimeControls() {
+    updateTodayBox();
+
     if (!minDate || !maxDate) {
         document.getElementById('selectedTime').textContent = 'No dated sightings returned from Supabase';
         return;
@@ -1698,6 +1740,15 @@ async function openMap() {
 
     hideMapGate();
     startMap(info.token);
+
+    // Short-lived tokens stop working after a while. Just before that, ask the visitor to reopen
+    // the map (which counts a new map load and fetches a fresh token).
+    if (info.expires_in_seconds) {
+        const ms = Math.max(info.expires_in_seconds - 60, 30) * 1000;
+        setTimeout(() => {
+            showMapGate('This map session has ended. Reopen the map to keep exploring.', 'Reopen the map', () => location.reload());
+        }, ms);
+    }
 }
 
 if (REQUIRE_CLICK_TO_LOAD) {

@@ -278,6 +278,32 @@
                 font-size: 1.15em;
             }
 
+            /* ---- "Today" info box, its own small pill to the right of Spin ---- */
+            .today-box {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                background: rgba(2, 7, 20, 0.85);
+                backdrop-filter: blur(8px);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 8px;
+                padding: 4px 14px;
+                color: #ffffff;
+                font-size: 0.85em;
+                white-space: nowrap;
+                pointer-events: auto; /* so the date shows on hover */
+            }
+            .today-box-label {
+                opacity: 0.7;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                font-size: 0.85em;
+            }
+            .today-box-value {
+                font-weight: bold;
+                color: #a5ddf7;
+            }
+
             .cil--hamburger-menu {
                 display: inline-block;
                 width: 1em;
@@ -727,14 +753,18 @@
                     <span id="spin-label">Spin</span>
                 </button>
             </div>
+            <div class="today-box" id="today-box" title="Sightings recorded today">
+                <span class="today-box-label">Today</span>
+                <span class="today-box-value" id="todayCount">--</span>
+            </div>
         </div>
         <div class="site-stats-corner">
             <span class="site-stat-value" id="totalSightingsToDate">--</span>
             <span class="site-stat-label">Sightings to Date</span>
             <span class="site-stat-value" id="animalsTotal">--</span>
             <span class="site-stat-label">Animals Total</span>
-            <span class="site-stat-value" id="sightingsToday">--</span>
-            <span class="site-stat-label">Sightings Today</span>
+            <span class="site-stat-value" id="sightingsOnDate">--</span>
+            <span class="site-stat-label" id="sightingsOnDateLabel">Sightings on --</span>
         </div>
         <div id="map"></div>
         <script src="App.js?v=19"></script>

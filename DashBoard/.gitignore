@@ -1,3 +1,14 @@
-
+# Secrets: never commit these
+.streamlit/secrets.toml
 **/.streamlit/secrets.toml
 .env
+
+# Local counter file (the live count is in MongoDB now)
+map_loads.json
+map_loads.json.tmp
+
+# Python clutter
+__pycache__/
+*.pyc
+.venv/
+venv/

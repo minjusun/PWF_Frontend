@@ -16,27 +16,35 @@ Put this file next to data.py and whale_regions.py (the dashboard folder).
 
 Run the server:      python map_api.py                  -> http://localhost:8000
 One-off static file: python map_api.py --export points_allspeciesv5.geojson
-In production:       gunicorn map_api:app --workers 1 --threads 8
-                     (keep ONE worker: the map-load counter is shared through one process)
+In production:       gunicorn map_api:app --workers 2 --threads 8
+                     (any number of workers is fine: the counter lives in MongoDB)
 
 Settings, from env vars or .streamlit/secrets.toml (same file as the dashboard):
   SUPABASE_URL + SUPABASE_KEY   (secrets.toml: supabase_url / supabase_key)
       or DATABASE_URL           (secrets.toml: db_url)
   MAPBOX_TOKEN                  (secrets.toml: mapbox_token)  your PUBLIC pk. token
+  MONGODB_URI                   (secrets.toml: mongodb_uri)   Atlas connection string, e.g.
+                                mongodb+srv://USER:PASS@cluster0.xxxxx.mongodb.net/
 Optional env vars:
   MAP_LOAD_LIMIT=45000          map loads allowed per billing month (Mapbox free tier is 50,000)
   MAPBOX_BILLING_DAY=1          day of the month your Mapbox billing period starts
   PER_VISITOR_DAILY_LIMIT=300   map loads one visitor (one internet address) can use per day
-  MAP_LOAD_COUNTER_FILE=...     where the count is saved (default: map_loads.json next to this file)
+  MONGODB_DB=whale_map          database that holds the counter collections
+  MAP_LOAD_COUNTER_FILE=...     old file-based count; if it exists, it's copied into MongoDB once
+                                at startup so the current month's count isn't lost
+Needs: pip install pymongo
 """
 import argparse
+import hashlib
 import json
 import os
 import threading
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
+from pymongo import MongoClient, ReturnDocument
+from pymongo.errors import DuplicateKeyError, PyMongoError
 from flask import Flask, Response, jsonify, request, send_from_directory
 
 import data as d
@@ -51,6 +59,7 @@ MAP_LOAD_LIMIT = int(os.environ.get("MAP_LOAD_LIMIT", 45000))
 MAPBOX_BILLING_DAY = min(max(int(os.environ.get("MAPBOX_BILLING_DAY", 1)), 1), 28)
 PER_VISITOR_DAILY_LIMIT = int(os.environ.get("PER_VISITOR_DAILY_LIMIT", 300))
 COUNTER_FILE = os.environ.get("MAP_LOAD_COUNTER_FILE", os.path.join(HERE, "map_loads.json"))
+MONGODB_DB = os.environ.get("MONGODB_DB", "whale_map")
 
 # The map popup shows general_notes, which the dashboard doesn't pull out of variable_data.
 # Adding it here keeps data.py shared and unchanged; it doesn't affect any cleaning rule.
@@ -172,9 +181,29 @@ def points_json() -> str:
         return _cache["body"]
 
 
-# ── Mapbox map-load counter (hard monthly cap) ───────────────────────────────
-_counter_lock = threading.Lock()
-_visitors = {"day": None, "counts": {}}     # per-visitor daily counts, kept in memory
+# ── Mapbox map-load counter in MongoDB (hard monthly cap) ────────────────────
+# Collections (created automatically):
+#   map_loads       one document per billing month:  {_id: "2026-11-01", count: 1234}
+#   visitor_loads   one per visitor per day:         {_id: "2026-11-13:<hashed IP>", count, expires}
+#                   (a TTL index deletes these after a couple of days)
+# Every check-and-add is a single atomic MongoDB update, so the count can never pass the
+# limit, even with several server workers or several servers sharing one database.
+_mongo = None
+_mongo_lock = threading.Lock()
+
+
+def mongo_db():
+    global _mongo
+    with _mongo_lock:
+        if _mongo is None:
+            uri = setting("MONGODB_URI", "mongodb_uri")
+            if not uri:
+                raise RuntimeError("No MONGODB_URI set. Add mongodb_uri to .streamlit/secrets.toml.")
+            client = MongoClient(uri, serverSelectionTimeoutMS=5000, appname="whale-map")
+            db = client[MONGODB_DB]
+            db.visitor_loads.create_index("expires", expireAfterSeconds=0)
+            _mongo = db
+        return _mongo
 
 
 def billing_period_start(today=None) -> date:
@@ -191,50 +220,68 @@ def next_reset(start: date) -> date:
     return date(y, m, MAPBOX_BILLING_DAY)
 
 
-def _read_counter() -> dict:
+def _visitor_key(visitor: str) -> str:
+    # Store a hash, not the raw internet address.
+    return hashlib.sha256(visitor.encode()).hexdigest()[:24]
+
+
+def _try_increment(coll, doc_id: str, limit: int, extra=None):
+    """Add 1 to doc_id's count only if it's below limit. Returns the new count, or None if full.
+
+    If the document exists and is full, the filter doesn't match, so the upsert tries to
+    insert a second document with the same _id and MongoDB refuses: that means "full".
+    """
     try:
-        with open(COUNTER_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, ValueError):
-        return {}
+        doc = coll.find_one_and_update(
+            {"_id": doc_id, "count": {"$lt": limit}},
+            {"$inc": {"count": 1}, **({"$setOnInsert": extra} if extra else {})},
+            upsert=True, return_document=ReturnDocument.AFTER)
+        return doc["count"]
+    except DuplicateKeyError:
+        return None
 
 
-def _write_counter(data: dict):
-    tmp = COUNTER_FILE + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f)
-    os.replace(tmp, COUNTER_FILE)           # swap in whole, so a crash never leaves half a file
-
-
-def _current_counter() -> dict:
+def current_count() -> dict:
     start = billing_period_start()
-    data = _read_counter()
-    if data.get("period") != start.isoformat():   # new billing month: start from zero
-        data = {"period": start.isoformat(), "count": 0}
-    return data
+    doc = mongo_db().map_loads.find_one({"_id": start.isoformat()}) or {}
+    return {"period": start.isoformat(), "count": doc.get("count", 0)}
 
 
 def claim_map_load(visitor: str) -> dict:
-    with _counter_lock:
-        today = datetime.now(timezone.utc).date().isoformat()
-        if _visitors["day"] != today:
-            _visitors.update(day=today, counts={})
-        data = _current_counter()
-        resets = next_reset(date.fromisoformat(data["period"]))
-        info = {"count": data["count"], "limit": MAP_LOAD_LIMIT, "resets": resets.isoformat()}
+    db = mongo_db()
+    start = billing_period_start()
+    resets = next_reset(start)
+    info = {"limit": MAP_LOAD_LIMIT, "resets": resets.isoformat()}
+    now = datetime.now(timezone.utc)
 
-        if data["count"] >= MAP_LOAD_LIMIT:
-            return {**info, "allowed": False, "reason": "monthly_limit",
-                    "message": f"The map has reached its monthly viewing limit. "
-                               f"It will be back on {resets.strftime('%B %d, %Y').replace(' 0', ' ')}."}
-        if _visitors["counts"].get(visitor, 0) >= PER_VISITOR_DAILY_LIMIT:
-            return {**info, "allowed": False, "reason": "visitor_limit",
-                    "message": "You've opened the map many times today. Please try again tomorrow."}
+    # 1. This visitor's daily allowance.
+    visitor_id = f"{now.date().isoformat()}:{_visitor_key(visitor)}"
+    expires = datetime.combine(now.date(), datetime.min.time(), tzinfo=timezone.utc) + timedelta(days=2)
+    if _try_increment(db.visitor_loads, visitor_id, PER_VISITOR_DAILY_LIMIT, {"expires": expires}) is None:
+        return {**info, "count": current_count()["count"], "allowed": False, "reason": "visitor_limit",
+                "message": "You've opened the map many times today. Please try again tomorrow."}
 
-        data["count"] += 1
-        _write_counter(data)
-        _visitors["counts"][visitor] = _visitors["counts"].get(visitor, 0) + 1
-        return {**info, "count": data["count"], "allowed": True}
+    # 2. The monthly cap.
+    count = _try_increment(db.map_loads, start.isoformat(), MAP_LOAD_LIMIT)
+    if count is None:
+        db.visitor_loads.update_one({"_id": visitor_id}, {"$inc": {"count": -1}})  # give the visit back
+        return {**info, "count": MAP_LOAD_LIMIT, "allowed": False, "reason": "monthly_limit",
+                "message": f"The map has reached its monthly viewing limit. "
+                           f"It will be back on {resets.strftime('%B %d, %Y').replace(' 0', ' ')}."}
+    return {**info, "count": count, "allowed": True}
+
+
+def import_old_counter_file():
+    """One-time carry-over from map_loads.json, so this month's earlier loads still count."""
+    try:
+        with open(COUNTER_FILE, encoding="utf-8") as f:
+            old = json.load(f)
+    except (FileNotFoundError, ValueError):
+        return
+    if old.get("period") == billing_period_start().isoformat() and old.get("count"):
+        # $max never lowers the count, so running this again is harmless.
+        mongo_db().map_loads.update_one({"_id": old["period"]}, {"$max": {"count": int(old["count"])}},
+                                        upsert=True)
 
 
 # ── Web server ───────────────────────────────────────────────────────────────
@@ -265,7 +312,13 @@ def map_load():
         return _no_store(jsonify(allowed=False, message="Server has no MAPBOX_TOKEN set.")), 500
     route = request.access_route
     visitor = route[0] if route else (request.remote_addr or "unknown")
-    result = claim_map_load(visitor)
+    try:
+        result = claim_map_load(visitor)
+    except (PyMongoError, RuntimeError) as e:
+        # Can't confirm the count, so don't open the map: better a short outage than a Mapbox bill.
+        print(f"Map-load counter unavailable: {e}")
+        return _no_store(jsonify(allowed=False, message="The map is unavailable right now. "
+                                                         "Please try again in a few minutes.")), 503
     if result["allowed"]:
         result["token"] = token
     return _no_store(jsonify(result))
@@ -273,8 +326,10 @@ def map_load():
 
 @app.get("/api/map-load")
 def map_load_status():
-    with _counter_lock:
-        data = _current_counter()
+    try:
+        data = current_count()
+    except (PyMongoError, RuntimeError) as e:
+        return _no_store(jsonify(error=str(e))), 503
     resets = next_reset(date.fromisoformat(data["period"]))
     return _no_store(jsonify(count=data["count"], limit=MAP_LOAD_LIMIT, period_start=data["period"],
                              resets=resets.isoformat()))
@@ -305,7 +360,11 @@ if __name__ == "__main__":
             print(f"Warning: no webmap.html in {FRONTEND_DIR}. Set FRONTEND_DIR to your front-end folder.")
         if not mapbox_token():
             print("Warning: no MAPBOX_TOKEN set; the map won't open. Add mapbox_token to .streamlit/secrets.toml.")
-        print(f"Map loads this billing month: {_current_counter()['count']:,} of {MAP_LOAD_LIMIT:,}")
+        try:
+            import_old_counter_file()
+            print(f"Map loads this billing month: {current_count()['count']:,} of {MAP_LOAD_LIMIT:,}")
+        except (PyMongoError, RuntimeError) as e:
+            print(f"Warning: can't reach MongoDB ({e}); the map won't open until it can.")
         threading.Thread(target=points_json, daemon=True).start()   # warm the cache while the page loads
         print(f"Serving {FRONTEND_DIR} on http://localhost:{args.port}")
         app.run(host="127.0.0.1", port=args.port)
