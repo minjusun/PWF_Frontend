@@ -650,6 +650,28 @@ function formatDate(d) {
     return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+// ==== Visitor's own time zone ====
+// The slider, its labels and the timelapse work in "wall-clock" milliseconds: the visitor's
+// local date and time written as if it were UTC. So a sighting at 3 p.m. on Nov 15 in Hawaii
+// sits on Nov 15 for someone in Hawaii, and on whatever their local date is for anyone else.
+// Every getUTC* / Date.UTC / timeZone: 'UTC' below then reads the visitor's local calendar.
+function toWallMs(d) {
+    return d.getTime() - d.getTimezoneOffset() * 60000;
+}
+
+// Today's date in the visitor's time zone, as a wall-clock day.
+function todayDayMs() {
+    const now = new Date();
+    return Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+// Label for a wall-clock day (slider ends and the selected date).
+function formatDayMs(ms) {
+    return new Date(ms).toLocaleDateString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC'
+    });
+}
+
 function toDayMs(d) {
     return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
@@ -705,6 +727,13 @@ function computeYearDayRange(year) {
         if (maxMs === null || dayMs > maxMs) maxMs = dayMs;
     }
 
+    // This year's slider runs up to today, even before today's first sighting.
+    const today = todayDayMs();
+    if (new Date(today).getUTCFullYear() === year) {
+        if (minMs === null) minMs = today;
+        if (maxMs === null || today > maxMs) maxMs = today;
+    }
+
     const range = {
         minMs,
         maxMs,
@@ -743,15 +772,23 @@ async function loadPointsAndComputeDateRange() {
             continue;
         }
 
-        const dayMs = toDayMs(d);
+        const wall = new Date(toWallMs(d));      // sighting time on the visitor's clock
+        const dayMs = toDayMs(wall);
         feature.properties._day_ms = dayMs;
-        feature.properties._ts_ms = d.getTime(); // exact sighting time, used by the timelapse
-        feature.properties._year = d.getUTCFullYear();
-        feature.properties._month = d.getUTCMonth() + 1;
+        feature.properties._ts_ms = wall.getTime(); // exact sighting time, used by the timelapse
+        feature.properties._year = wall.getUTCFullYear();
+        feature.properties._month = wall.getUTCMonth() + 1;
         yearsSet.add(feature.properties._year);
 
         if (minMs === null || dayMs < minMs) minMs = dayMs;
         if (maxMs === null || dayMs > maxMs) maxMs = dayMs;
+    }
+
+    // The slider always runs up to today, even before today's first sighting.
+    if (minMs !== null) {
+        const today = todayDayMs();
+        if (today > maxMs) maxMs = today;
+        yearsSet.add(new Date(today).getUTCFullYear());
     }
 
     allYearsList = Array.from(yearsSet).sort((a, b) => a - b);
@@ -1063,7 +1100,7 @@ function configureSlider() {
 
             const today = new Date();
             let defaultIndex = monthBuckets.findIndex(
-                b => b.year === today.getUTCFullYear() && b.month === today.getUTCMonth() + 1
+                b => b.year === today.getFullYear() && b.month === today.getMonth() + 1
             );
             if (defaultIndex === -1) defaultIndex = monthBuckets.length - 1;
             slider.value = defaultIndex;
@@ -1081,13 +1118,13 @@ function configureSlider() {
             maxLabel.textContent = '--';
             slider.value = 0;
         } else {
-            minLabel.textContent = formatDate(new Date(range.minMs));
-            maxLabel.textContent = formatDate(new Date(range.maxMs));
+            minLabel.textContent = formatDayMs(range.minMs);
+            maxLabel.textContent = formatDayMs(range.maxMs);
 
             const today = new Date();
             let defaultIndex;
-            if (today.getUTCFullYear() === currentYearFilter) {
-                const todayMs = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+            if (today.getFullYear() === currentYearFilter) {
+                const todayMs = todayDayMs();
                 defaultIndex = Math.round((todayMs - range.minMs) / MS_PER_DAY);
                 defaultIndex = Math.max(0, Math.min(range.totalDays, defaultIndex));
             } else {
@@ -1112,7 +1149,7 @@ function updateSelectedDateLabel() {
     } else {
         const range = computeYearDayRange(currentYearFilter);
         label.textContent = (range.minMs !== null)
-            ? formatDate(new Date(range.minMs + index * MS_PER_DAY))
+            ? formatDayMs(range.minMs + index * MS_PER_DAY)
             : '--';
     }
 }
