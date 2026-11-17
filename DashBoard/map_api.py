@@ -8,6 +8,9 @@ dashboard (data.prepare(real=True) + the whale_regions land mask), then serves:
     /api/map-load  (POST) asks to open the map: counts one Mapbox map load and returns
                           the Mapbox token, or says no once this month's limit is reached
     /api/map-load  (GET)  this month's count, without adding to it
+    /api/stats.json       numbers for the stats page (same hourly refresh as the points)
+    /stats                stats page with all three charts; /stats/active-users,
+                          /stats/sightings and /stats/contributors show one chart each (for iframes)
     /                     webmap.html, App.js, species_description.csv, imgs/ ...
 
 No demo / mock data: if Supabase credentials are missing, it stops with an error.
@@ -26,6 +29,8 @@ Settings, from env vars or .streamlit/secrets.toml (same file as the dashboard):
   MONGODB_URI                   (secrets.toml: mongodb_uri)   Atlas connection string, e.g.
                                 mongodb+srv://USER:PASS@cluster0.xxxxx.mongodb.net/
 Optional env vars:
+  CONTRIBUTOR_NAMES=short       "short" shows top contributors as "First L.", "full" shows whole names
+  STATS_UNKNOWN_CODES=OTH       species codes counted as "Unknown" on the stats page
   MAP_LOAD_LIMIT=45000          map loads allowed per billing month (Mapbox free tier is 50,000)
   MAPBOX_BILLING_DAY=1          day of the month your Mapbox billing period starts
   PER_VISITOR_DAILY_LIMIT=300   map loads one visitor (one internet address) can use per day
@@ -119,8 +124,10 @@ def land():
     return _land or None
 
 
-def load_clean_sightings() -> pd.DataFrame:
-    s, _ = d.prepare(*load_raw(), real=True)
+def load_clean_data():
+    """Cleaned sightings and trips, plus the species table (for whale / dolphin groups)."""
+    s_raw, t_raw, species, profiles = load_raw()
+    s, t = d.prepare(s_raw, t_raw, species, profiles, real=True)
     lnd = land()
     if lnd is not None and len(s):          # only keep sightings on the water
         pts = s[["lat", "lon"]].round(4).drop_duplicates()
@@ -128,7 +135,11 @@ def load_clean_sightings() -> pd.DataFrame:
         s = (s.assign(_la=s["lat"].round(4), _lo=s["lon"].round(4))
               .merge(pts.rename(columns={"lat": "_la", "lon": "_lo"}), on=["_la", "_lo"], how="left"))
         s = s[~s["inland"].fillna(False).astype(bool)].drop(columns=["_la", "_lo", "inland"])
-    return s
+    return s, t, species
+
+
+def load_clean_sightings() -> pd.DataFrame:
+    return load_clean_data()[0]
 
 
 # ── GeoJSON in the shape App.js expects ──────────────────────────────────────
@@ -160,25 +171,128 @@ def to_feature_collection(s: pd.DataFrame) -> dict:
     return {"type": "FeatureCollection", "features": feats}
 
 
-# ── Cached JSON ──────────────────────────────────────────────────────────────
-_cache = {"body": None, "at": 0.0, "count": 0}
+# ── Stats page (active users, whale & dolphin sightings, top contributors) ──
+# Species codes counted as "Unknown" (e.g. OTH = other / unidentified). Comma-separated env var.
+UNKNOWN_CODES = {c.strip().upper() for c in os.environ.get("STATS_UNKNOWN_CODES", "OTH").split(",") if c.strip()}
+# "short" shows contributors as "First L."; "full" shows the whole display name.
+CONTRIBUTOR_NAMES = os.environ.get("CONTRIBUTOR_NAMES", "short").strip().lower()
+GROUPS = ["Whales", "Dolphins", "Unknown"]
+
+
+def _species_group(code, name, taxonomy):
+    """Whales / Dolphins / Unknown, or None for everything else (marine debris, seals, sharks...)."""
+    code = (code or "").strip().upper()
+    name = (name or "").strip().lower()
+    tax = (taxonomy or "").strip().lower()
+    if code in UNKNOWN_CODES or name in ("unknown", "unidentified"):
+        return "Unknown"
+    if "debris" in name or "debris" in code.lower() or tax == "other" or "shark" in name or "seal" in name:
+        return None
+    if "dolphin" in name or "porpoise" in name or tax in ("dolphin", "porpoise"):
+        return "Dolphins"
+    if "whale" in name or "whale" in tax:
+        return "Whales"
+    return None
+
+
+def _short_name(name: str) -> str:
+    name = (name or "").strip()
+    if not name or name.startswith("user-"):
+        return "Anonymous contributor"
+    if CONTRIBUTOR_NAMES == "full":
+        return name
+    parts = name.split()
+    return parts[0] if len(parts) == 1 else f"{parts[0]} {parts[-1][0].upper()}."
+
+
+def build_stats(s: pd.DataFrame, t: pd.DataFrame, species: pd.DataFrame) -> dict:
+    now = pd.Timestamp.now(tz="UTC").tz_localize(None)
+    months = pd.period_range(end=now.to_period("M"), periods=12, freq="M")
+
+    # Active users: anyone who logged a sighting or a trip
+    who = pd.concat([s[["ts", "creator"]], t[["ts", "creator"]]], ignore_index=True)
+    per_month = who.groupby(who["ts"].dt.to_period("M"))["creator"].nunique()
+    active = {
+        "this_month": int(per_month.get(months[-1], 0)),
+        "last_30_days": int(who.loc[who["ts"] >= now - pd.Timedelta(days=30), "creator"].nunique()),
+        "all_time": int(who["creator"].nunique()),
+        "monthly": [{"period": str(m), "users": int(per_month.get(m, 0))} for m in months],
+    }
+
+    # Whale & dolphin sightings (no marine debris)
+    tax = {}
+    if species is not None and "taxonomy" in species.columns:
+        tax = dict(zip(species["code"].astype(str).str.upper(), species["taxonomy"].astype(str)))
+    groups = [_species_group(c, n, tax.get(str(c).upper()))
+              for c, n in zip(s["species_code"].astype(str), s["species_name"].astype(str))]
+    cet = s.assign(group=groups).dropna(subset=["group"])
+    cet = cet.assign(animals=pd.to_numeric(cet["animals_total"], errors="coerce").fillna(0))
+
+    def by_period(periods, labels):
+        table = (cet.assign(p=periods).groupby(["p", "group"])["animals"].sum()
+                 .unstack(fill_value=0).reindex(columns=GROUPS, fill_value=0))
+        return [{"period": lab, **{g: int(table.loc[p, g]) if p in table.index else 0 for g in GROUPS}}
+                for p, lab in labels]
+
+    years = sorted(cet["ts"].dt.year.unique())
+    sightings = {
+        "total_sightings": int(len(cet)),
+        "total_animals": int(cet["animals"].sum()),
+        "groups": [{"group": g, "sightings": int((cet["group"] == g).sum()),
+                    "animals": int(cet.loc[cet["group"] == g, "animals"].sum())} for g in GROUPS],
+        "by_year": by_period(cet["ts"].dt.year, [(y, str(y)) for y in years]),
+        "by_month": by_period(cet["ts"].dt.to_period("M"), [(m, str(m)) for m in months]),
+    }
+
+    # Top 5 contributors worldwide, by whale & dolphin sightings
+    g = cet.groupby("contributor").agg(sightings=("sighting_id", "count"), animals=("animals", "sum"),
+                                       species=("species_code", "nunique"))
+    trips = t.groupby("contributor")["track_id"].nunique().rename("trips")
+    g = g.join(trips, how="left").fillna(0).sort_values(["sightings", "animals"], ascending=False).head(5)
+    contributors = [{"name": _short_name(n), "sightings": int(r.sightings), "animals": int(r.animals),
+                     "species": int(r.species), "trips": int(r.trips)} for n, r in g.iterrows()]
+
+    return {"updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "active_users": active, "sightings": sightings, "contributors": contributors}
+
+
+# ── Cached JSON (map points + stats share one hourly Supabase read) ───────────
+_cache = {"body": None, "stats": None, "at": 0.0, "count": 0}
 _lock = threading.Lock()
+
+
+def _refresh_if_stale():
+    """Call with _lock held."""
+    if _cache["body"] is not None and time.time() - _cache["at"] <= CACHE_SECONDS:
+        return
+    try:
+        s, t, species = load_clean_data()
+        fc = to_feature_collection(s)
+        _cache.update(body=json.dumps(fc, separators=(",", ":")), at=time.time(), count=len(fc["features"]))
+        print(f"Loaded {_cache['count']:,} cleaned sightings from Supabase.")
+    except Exception:
+        if _cache["body"] is None:
+            raise                           # nothing to fall back on
+        print("Refresh failed; serving the previous data.")
+        return
+    try:                                    # a stats bug must never take the map down
+        _cache["stats"] = json.dumps(build_stats(s, t, species), separators=(",", ":"))
+    except Exception as e:
+        print(f"Stats failed ({e}); keeping the previous stats.")
 
 
 def points_json() -> str:
     with _lock:
-        stale = _cache["body"] is None or time.time() - _cache["at"] > CACHE_SECONDS
-        if stale:
-            try:
-                fc = to_feature_collection(load_clean_sightings())
-                _cache.update(body=json.dumps(fc, separators=(",", ":")), at=time.time(),
-                              count=len(fc["features"]))
-                print(f"Loaded {_cache['count']:,} cleaned sightings from Supabase.")
-            except Exception:
-                if _cache["body"] is None:
-                    raise                   # nothing to fall back on
-                print("Refresh failed; serving the previous data.")
+        _refresh_if_stale()
         return _cache["body"]
+
+
+def stats_json() -> str:
+    with _lock:
+        _refresh_if_stale()
+        if _cache["stats"] is None:
+            raise RuntimeError("Stats aren't available yet.")
+        return _cache["stats"]
 
 
 # ── Mapbox map-load counter in MongoDB (hard monthly cap) ────────────────────
@@ -333,6 +447,26 @@ def map_load_status():
     resets = next_reset(date.fromisoformat(data["period"]))
     return _no_store(jsonify(count=data["count"], limit=MAP_LOAD_LIMIT, period_start=data["period"],
                              resets=resets.isoformat()))
+
+
+@app.get("/api/stats.json")
+def stats():
+    try:
+        body = stats_json()
+    except Exception as e:
+        return Response(json.dumps({"error": str(e)}), status=502, mimetype="application/json")
+    return Response(body, mimetype="application/json", headers={"Cache-Control": "public, max-age=300"})
+
+
+STATS_VIEWS = {"active-users", "sightings", "contributors"}
+
+
+@app.get("/stats")
+@app.get("/stats/<view>")
+def stats_page(view=None):
+    if view is not None and view not in STATS_VIEWS:
+        return Response("Not found", status=404)
+    return send_from_directory(FRONTEND_DIR, "stats.html")
 
 
 @app.get("/")

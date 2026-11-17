@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whale & dolphin sightings stats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<style>
+  /* Same colors and fonts as the map */
+  :root {
+    --bg: #020714;
+    --panel: #0a1428;
+    --line: #1c2a45;
+    --text: #ffffff;
+    --muted: #9fb0c8;
+    --accent: #a5ddf7;
+    --whales: #a5ddf7;
+    --dolphins: #4fb8a8;
+    --unknown: #7d8aa3;
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --panel: #f3f7fb;
+    --line: #d7e1ec;
+    --text: #020714;
+    --muted: #4d5d75;
+    --accent: #1f6f9b;
+    --whales: #2f8fc4;
+    --dolphins: #2a9584;
+    --unknown: #8a94a6;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font: 15px/1.55 "Open Sans", "Helvetica Neue", Arial, sans-serif; }
+  h1, h2, .num { font-family: "Anton", Impact, "Arial Narrow", sans-serif; font-weight: 400; letter-spacing: .01em; }
+
+  .page { max-width: 1100px; margin: 0 auto; padding: 32px 20px 40px; }
+  .page > h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.05; margin: 0 0 6px; }
+  .page > .intro { color: var(--muted); margin: 0 0 28px; max-width: 62ch; }
+  .grid { display: grid; gap: 20px; grid-template-columns: 1fr 1fr; }
+  .grid #sightings { grid-column: 1 / -1; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px 22px 18px; min-width: 0; }
+  .panel h2 { font-size: 24px; line-height: 1.1; margin: 0 0 14px; }
+  .note { color: var(--muted); font-size: 13px; margin: 12px 0 0; }
+
+  /* Single-chart embeds fill the iframe with no page chrome */
+  body.embed .page { padding: 0; max-width: none; }
+  body.embed .page > h1, body.embed .page > .intro, body.embed .updated { display: none; }
+  body.embed .grid { display: block; }
+  /* Each chart fits whatever box the iframe gives it (a square works well) */
+  html:has(body.embed), body.embed { height: 100%; overflow: hidden; }
+  body.embed .page, body.embed .grid { height: 100%; }
+  body.embed .panel { border-radius: 0; border: 0; height: 100%; display: flex; flex-direction: column;
+                      padding: clamp(14px, 4vmin, 22px); }
+  body.embed .panel h2 { font-size: clamp(19px, 6vmin, 26px); margin-bottom: clamp(8px, 2.5vmin, 14px); }
+  body.embed .chart, body.embed #sightings .chart { flex: 1 1 0; height: auto; min-height: 110px; overflow: hidden; }
+  body.embed .headline .num { font-size: clamp(36px, 13vmin, 60px); }
+  body.embed .facts { margin: clamp(6px, 2vmin, 12px) 0 clamp(8px, 3vmin, 16px); }
+  body.embed .note { margin-top: 8px; font-size: 12px; }
+  body.embed ol.leaders { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: space-between; }
+  body.embed ol.leaders li { padding: clamp(5px, 1.6vmin, 11px) 0; }
+  body.embed .status { flex: 1; }
+
+  /* Active users */
+  .headline { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .headline .num { font-size: 56px; line-height: 1; color: var(--accent); }
+  .headline .label { color: var(--muted); }
+  .facts { display: flex; gap: 28px; margin: 12px 0 16px; flex-wrap: wrap; }
+  .facts div { color: var(--muted); font-size: 13px; }
+  .facts strong { display: block; color: var(--text); font-size: 18px; font-weight: 600; }
+  .chart { position: relative; height: 180px; }
+  #sightings .chart { height: 280px; }
+
+  /* Sightings */
+  .bar-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .totals { color: var(--muted); margin: -6px 0 14px; }
+  .totals strong { color: var(--text); font-weight: 600; }
+  .toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+  .toggle button { font: inherit; font-size: 13px; color: var(--muted); background: none; border: 0; border-radius: 999px; padding: 5px 14px; cursor: pointer; }
+  .toggle button[aria-pressed="true"] { background: var(--accent); color: var(--bg); font-weight: 600; }
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 7px; background: var(--c); vertical-align: -1px; }
+  .legend b { color: var(--text); font-weight: 600; }
+
+  /* Contributors */
+  ol.leaders { list-style: none; margin: 0; padding: 0; counter-reset: rank; }
+  ol.leaders li { counter-increment: rank; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 4px 12px; padding: 11px 0; border-top: 1px solid var(--line); }
+  ol.leaders li:first-child { border-top: 0; padding-top: 2px; }
+  ol.leaders li::before { content: counter(rank); font-family: "Anton", Impact, sans-serif; font-size: 26px; line-height: 1; color: var(--accent); grid-row: span 2; }
+  .who { font-weight: 600; overflow-wrap: anywhere; }
+  .count { font-weight: 600; text-align: right; white-space: nowrap; }
+  .meter { grid-column: 2 / 4; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--accent); }
+  .sub { grid-column: 2 / 4; color: var(--muted); font-size: 13px; }
+
+  .status { color: var(--muted); padding: 24px 0; }
+  .updated { color: var(--muted); font-size: 13px; margin-top: 22px; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main class="page">
+  <h1>Whale and dolphin sightings</h1>
+  <p class="intro">Live numbers from sightings recorded by our community of whale watchers. Updated every hour.</p>
+
+  <div class="grid">
+    <section class="panel" id="active-users" aria-labelledby="au-title">
+      <h2 id="au-title">Active users</h2>
+      <div class="status">Loading…</div>
+    </section>
+
+    <section class="panel" id="contributors" aria-labelledby="tc-title">
+      <h2 id="tc-title">Top 5 contributors worldwide</h2>
+      <div class="status">Loading…</div>
+    </section>
+
+    <section class="panel" id="sightings" aria-labelledby="sg-title">
+      <h2 id="sg-title">Animals counted</h2>
+      <div class="status">Loading…</div>
+    </section>
+  </div>
+
+  <p class="updated" id="updated"></p>
+</main>
+
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  if (params.get('theme') === 'light') document.documentElement.dataset.theme = 'light';
+
+  // /stats/active-users, /stats/sightings or /stats/contributors show just that panel
+  const VIEWS = ['active-users', 'sightings', 'contributors'];
+  const view = VIEWS.find(v => location.pathname.replace(/\/+$/, '').endsWith('/stats/' + v));
+  if (view) {
+    document.body.classList.add('embed');
+    VIEWS.filter(v => v !== view).forEach(v => document.getElementById(v).remove());
+  }
+
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const fmt = n => Number(n).toLocaleString('en-US');
+  const GROUPS = [
+    { key: 'Whales', label: 'Whales', color: '--whales' },
+    { key: 'Dolphins', label: 'Dolphins & porpoises', color: '--dolphins' },
+    { key: 'Unknown', label: 'Unknown', color: '--unknown' },
+  ];
+  const monthLabel = p => {
+    const [y, m] = p.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+  };
+  const monthLong = p => {
+    const [y, m] = p.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  };
+
+  function chartDefaults() {
+    Chart.defaults.font.family = '"Open Sans", "Helvetica Neue", Arial, sans-serif';
+    Chart.defaults.font.size = 12;
+    Chart.defaults.color = css('--muted');
+    Chart.defaults.borderColor = css('--line');
+    Chart.defaults.animation = matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { duration: 500 };
+  }
+
+  function setBody(id, html) {
+    const panel = document.getElementById(id);
+    if (!panel) return null;
+    panel.querySelectorAll(':scope > :not(h2)').forEach(el => el.remove());
+    panel.insertAdjacentHTML('beforeend', html);
+    return panel;
+  }
+
+  function renderActiveUsers(a) {
+    const panel = setBody('active-users', `
+      <div class="headline"><span class="num">${fmt(a.this_month)}</span>
+        <span class="label">active this month</span></div>
+      <div class="facts">
+        <div><strong>${fmt(a.last_30_days)}</strong>in the last 30 days</div>
+        <div><strong>${fmt(a.all_time)}</strong>contributors all time</div>
+      </div>
+      <div class="chart"><canvas aria-label="Active users per month, last 12 months" role="img"></canvas></div>
+      <p class="note">Active means they logged at least one trip or sighting that month.</p>`);
+    if (!panel) return;
+    new Chart(panel.querySelector('canvas'), {
+      type: 'line',
+      data: {
+        labels: a.monthly.map(m => monthLabel(m.period)),
+        datasets: [{ data: a.monthly.map(m => m.users), borderColor: css('--accent'), backgroundColor: css('--accent') + '22',
+                     fill: true, tension: .35, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2 }]
+      },
+      options: {
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { title: items => monthLong(a.monthly[items[0].dataIndex].period),
+                                            label: c => `${fmt(c.parsed.y)} active users` } } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    });
+  }
+
+  function renderSightings(s) {
+    const legend = GROUPS.map(g => {
+      const t = s.groups.find(x => x.group === g.key) || { animals: 0 };
+      return `<span style="--c: var(${g.color})">${g.label} <b>${fmt(t.animals)}</b></span>`;
+    }).join('');
+    const panel = setBody('sightings', `
+      <div class="bar-head">
+        <p class="totals"><strong>${fmt(s.total_animals)}</strong> animals counted across
+          <strong>${fmt(s.total_sightings)}</strong> sightings</p>
+        <div class="toggle" role="group" aria-label="Time range">
+          <button type="button" data-range="year" aria-pressed="true">By year</button>
+          <button type="button" data-range="month" aria-pressed="false">Last 12 months</button>
+        </div>
+      </div>
+      <div class="legend">${legend}</div>
+      <div class="chart"><canvas aria-label="Animals counted, by species group" role="img"></canvas></div>
+      <p class="note">Whales, dolphins and porpoises, plus sightings logged as unknown. Marine debris is not included.</p>`);
+    if (!panel) return;
+
+    const rows = range => range === 'year' ? s.by_year : s.by_month;
+    const labels = range => rows(range).map(r => range === 'year' ? r.period : monthLabel(r.period));
+    const chart = new Chart(panel.querySelector('canvas'), {
+      type: 'bar',
+      data: {
+        labels: labels('year'),
+        datasets: GROUPS.map(g => ({ label: g.label, data: rows('year').map(r => r[g.key]),
+                                     backgroundColor: css(g.color), borderRadius: 2, stack: 'a' }))
+      },
+      options: {
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: false },
+                   tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y)}`,
+                                            footer: items => `Total: ${fmt(items.reduce((t, i) => t + i.parsed.y, 0))}` } } },
+        scales: { x: { stacked: true, grid: { display: false } },
+                  y: { stacked: true, beginAtZero: true, ticks: { callback: v => fmt(v) } } }
+      }
+    });
+
+    panel.querySelectorAll('.toggle button').forEach(btn => btn.addEventListener('click', () => {
+      const range = btn.dataset.range;
+      panel.querySelectorAll('.toggle button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+      chart.data.labels = labels(range);
+      chart.data.datasets.forEach((ds, i) => { ds.data = rows(range).map(r => r[GROUPS[i].key]); });
+      chart.update();
+    }));
+  }
+
+  function renderContributors(list) {
+    if (!list.length) { setBody('contributors', '<p class="status">No sightings yet.</p>'); return; }
+    const max = Math.max(...list.map(c => c.sightings), 1);
+    const esc = t => String(t).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    setBody('contributors', `<ol class="leaders">${list.map(c => `
+      <li>
+        <span class="who">${esc(c.name)}</span>
+        <span class="count">${fmt(c.sightings)} sightings</span>
+        <span class="meter"><i style="width:${(c.sightings / max * 100).toFixed(1)}%"></i></span>
+        <span class="sub">${fmt(c.animals)} animals, ${fmt(c.species)} species, ${fmt(c.trips)} trips</span>
+      </li>`).join('')}</ol>
+      <p class="note">Ranked by whale and dolphin sightings logged.</p>`);
+  }
+
+  function showError(retrying) {
+    const msg = retrying ? 'The stats server is starting up. Trying again in a few seconds…'
+                         : 'Couldn’t load the stats. Reload the page to try again.';
+    VIEWS.forEach(v => setBody(v, `<p class="status">${msg}</p>`));
+  }
+
+  async function load(attempt = 1) {
+    try {
+      const res = await fetch('/api/stats.json', { cache: 'no-cache' });
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      chartDefaults();
+      renderActiveUsers(data.active_users);
+      renderSightings(data.sightings);
+      renderContributors(data.contributors);
+      const when = new Date(data.updated);
+      document.getElementById('updated').textContent =
+        'Last updated ' + when.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+    } catch (e) {
+      // A free Render server can take up to a minute to wake up
+      if (attempt < 4) { showError(true); setTimeout(() => load(attempt + 1), 15000); }
+      else showError(false);
+    }
+  }
+  load();
+})();
+</script>
+</body>
+</html>
