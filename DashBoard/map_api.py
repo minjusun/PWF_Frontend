@@ -35,8 +35,7 @@ Optional env vars:
   MAPBOX_BILLING_DAY=1          day of the month your Mapbox billing period starts
   PER_VISITOR_DAILY_LIMIT=300   map loads one visitor (one internet address) can use per day
   MONGODB_DB=whale_map          database that holds the counter and the saved data snapshot
-  REFRESH_ON_SERVER=1           0 = never read Supabase on this server; refresh the snapshot elsewhere
-                                with  python map_api.py --refresh-snapshot
+  SNAPSHOT_CHECK_SECONDS=300    how often the server looks in MongoDB for a newer saved snapshot
   MAP_LOAD_COUNTER_FILE=...     old file-based count; if it exists, it's copied into MongoDB once
                                 at startup so the current month's count isn't lost
 Needs: pip install pymongo
@@ -274,20 +273,17 @@ def build_stats(s: pd.DataFrame, t: pd.DataFrame, species: pd.DataFrame) -> dict
             "active_users": active, "sightings": sightings, "contributors": contributors}
 
 
-# ── Cached JSON (map points + stats share one Supabase read) ─────────────────
-# Reading and cleaning all sightings takes ~5 minutes on Render's free plan. So:
-#   * every finished load is saved (gzipped) in MongoDB, collection "snapshots";
-#   * when the server starts it loads that saved copy in a second or two, so a restart or
-#     wake-up never makes visitors wait;
-#   * a background thread refreshes from Supabase once the saved copy is CACHE_SECONDS old.
-# Set REFRESH_ON_SERVER=0 to never read Supabase on Render, and refresh the snapshot from
-# another computer instead with:   python map_api.py --refresh-snapshot
-REFRESH_ON_SERVER = os.environ.get("REFRESH_ON_SERVER", "1").strip().lower() not in ("0", "false", "no")
+# ── Data for the map and stats: a saved snapshot in MongoDB ──────────────────
+# Reading and cleaning all sightings is too heavy for Render's free plan (5 minutes and most of
+# its memory), so this server never does it. Instead:
+#   python map_api.py --refresh-snapshot     (on your computer, or a scheduled job)
+# reads Supabase, cleans the data and saves it, gzipped, in MongoDB ("snapshots" collection).
+# The server just reads that saved copy (a second or two), keeps it in memory, and checks
+# MongoDB for a newer one every SNAPSHOT_CHECK_SECONDS. No background threads, nothing slow.
+SNAPSHOT_CHECK_SECONDS = int(os.environ.get("SNAPSHOT_CHECK_SECONDS", 300))
 
-_cache = {"body_gz": None, "stats_gz": None, "at": 0.0, "count": 0}
+_cache = {"body_gz": None, "stats_gz": None, "at": 0.0, "count": 0, "checked": 0.0}
 _lock = threading.Lock()
-_ready = threading.Event()
-_status = {"started": time.time(), "last_error": None}
 
 
 def _gz(text: str) -> bytes:
@@ -295,32 +291,44 @@ def _gz(text: str) -> bytes:
 
 
 def save_snapshot():
-    with _lock:
-        doc = {"_id": "latest", "points_gz": Binary(_cache["body_gz"]), "count": _cache["count"],
-               "stats_gz": Binary(_cache["stats_gz"]) if _cache["stats_gz"] else None, "at": _cache["at"]}
+    doc = {"_id": "latest", "points_gz": Binary(_cache["body_gz"]), "count": _cache["count"],
+           "stats_gz": Binary(_cache["stats_gz"]) if _cache["stats_gz"] else None, "at": _cache["at"]}
     mongo_db().snapshots.replace_one({"_id": "latest"}, doc, upsert=True)
 
 
-def load_snapshot() -> bool:
-    """Use the copy saved in MongoDB. Returns True if there was one."""
-    try:
-        doc = mongo_db().snapshots.find_one({"_id": "latest"})
-    except Exception as e:
-        print(f"Couldn't read the saved snapshot ({e}).")
-        return False
-    if not doc or not doc.get("points_gz"):
-        return False
+def _load_snapshot():
+    """Call with _lock held. Reads the saved copy if it's newer than what's in memory."""
+    _cache["checked"] = time.time()
+    doc = mongo_db().snapshots.find_one({"_id": "latest"}, {"at": 1})
+    if not doc:
+        return
+    if doc.get("at", 0) <= _cache["at"] and _cache["body_gz"] is not None:
+        return                                  # nothing new
+    doc = mongo_db().snapshots.find_one({"_id": "latest"})
+    _cache.update(body_gz=bytes(doc["points_gz"]), count=doc.get("count", 0), at=doc.get("at", 0.0),
+                  stats_gz=bytes(doc["stats_gz"]) if doc.get("stats_gz") else None)
+    print(f"Using the saved snapshot: {_cache['count']:,} sightings, "
+          f"{(time.time() - _cache['at']) / 60:.0f} minutes old.")
+
+
+def _get(key: str) -> bytes:
     with _lock:
-        _cache.update(body_gz=bytes(doc["points_gz"]), count=doc.get("count", 0), at=doc.get("at", 0.0),
-                      stats_gz=bytes(doc["stats_gz"]) if doc.get("stats_gz") else None)
-    _ready.set()
-    age = (time.time() - _cache["at"]) / 60
-    print(f"Using the saved snapshot: {_cache['count']:,} sightings, {age:.0f} minutes old.")
-    return True
+        if _cache["body_gz"] is None or time.time() - _cache["checked"] > SNAPSHOT_CHECK_SECONDS:
+            try:
+                _load_snapshot()
+            except Exception as e:
+                print(f"Couldn't read the saved snapshot ({type(e).__name__}: {e}).")
+                if _cache["body_gz"] is None:
+                    raise RuntimeError(f"Couldn't read the map data from MongoDB ({type(e).__name__}).")
+        if _cache["body_gz"] is None:
+            raise RuntimeError("No map data saved yet. Run: python map_api.py --refresh-snapshot")
+        if _cache[key] is None:
+            raise RuntimeError("Stats aren't saved yet. Run: python map_api.py --refresh-snapshot")
+        return _cache[key]
 
 
 def refresh_data(save=True) -> bool:
-    """Read Supabase and rebuild everything. Keeps the previous copy if it fails."""
+    """Read Supabase, clean, and (by default) save the result to MongoDB. For the command line."""
     began = time.time()
     print("Reading sightings from Supabase...")
     try:
@@ -328,80 +336,31 @@ def refresh_data(save=True) -> bool:
         count = len(s)
         body_gz = _gz(geojson_text(s))
     except Exception as e:
-        _status["last_error"] = f"{type(e).__name__}: {e}"
-        print(f"Refresh failed ({_status['last_error']}); serving the previous data.")
+        print(f"Refresh failed ({type(e).__name__}: {e}).")
         return False
     stats_gz = None
-    try:                                    # a stats bug must never take the map down
+    try:
         stats_gz = _gz(json.dumps(build_stats(s, t, species), separators=(",", ":")))
     except Exception as e:
-        print(f"Stats failed ({e}); keeping the previous stats.")
-    del s, t, species
-    gc.collect()                            # hand the memory back before the next hour
-    with _lock:
-        _cache.update(body_gz=body_gz, count=count, at=time.time())
-        if stats_gz:
-            _cache["stats_gz"] = stats_gz
-    _status["last_error"] = None
-    _ready.set()
+        print(f"Stats failed ({e}); saving the map data without stats.")
+    _cache.update(body_gz=body_gz, stats_gz=stats_gz, count=count, at=time.time())
     print(f"Loaded {count:,} cleaned sightings from Supabase in {time.time() - began:.0f} s.")
     if save:
-        try:
-            save_snapshot()
-        except Exception as e:
-            print(f"Couldn't save the snapshot to MongoDB ({e}).")
+        save_snapshot()
     return True
 
 
-def _background_refresh():
-    load_snapshot()
-    while True:
-        if REFRESH_ON_SERVER:
-            wait = CACHE_SECONDS - (time.time() - _cache["at"])
-            if wait > 0:
-                time.sleep(wait)                # saved copy is still fresh
-            if not refresh_data():
-                time.sleep(60)                  # try again soon
-        else:
-            time.sleep(300)                     # someone else refreshes the snapshot
-            load_snapshot()
-
-
-_bg_started = False
-
-
-def start_background_refresh():
-    global _bg_started
-    if not _bg_started:
-        _bg_started = True
-        threading.Thread(target=_background_refresh, daemon=True).start()
-
-
-def _wait_for_data(key: str) -> bytes:
-    """The saved (gzipped) copy; on a first-ever start, waits up to 90 s for the first load."""
-    start_background_refresh()
-    if not _ready.wait(timeout=90):
-        waited = int(time.time() - _status["started"])
-        reason = f" The last attempt failed: {_status['last_error']}" if _status["last_error"] else ""
-        raise RuntimeError(f"The data is still loading (server started {waited} s ago). "
-                           f"Try again in a minute.{reason}")
-    with _lock:
-        if _cache[key] is None:
-            raise RuntimeError("Stats aren't available yet.")
-        return _cache[key]
-
-
 def points_json() -> str:
-    return gzip.decompress(_wait_for_data("body_gz")).decode("utf-8")
+    return gzip.decompress(_get("body_gz")).decode("utf-8")
 
 
 def stats_json() -> str:
-    return gzip.decompress(_wait_for_data("stats_gz")).decode("utf-8")
+    return gzip.decompress(_get("stats_gz")).decode("utf-8")
 
 
 def _json_response(key: str, mimetype: str, cache_control: str):
     try:
-        packed = _wait_for_data(key)
+        packed = _get(key)
     except Exception as e:
         return Response(json.dumps({"error": str(e)}), status=502, mimetype="application/json")
     headers = {"Cache-Control": cache_control, "Vary": "Accept-Encoding"}
@@ -561,6 +520,25 @@ def map_load_status():
                              resets=resets.isoformat()))
 
 
+@app.get("/api/health")
+def health():
+    """Quick check: is the server up, can it reach MongoDB, how old is the saved data?"""
+    out = {"server": "ok"}
+    try:
+        with _lock:
+            _load_snapshot()
+        out["mongodb"] = "ok"
+        out["sightings"] = _cache["count"]
+        out["data_age_minutes"] = round((time.time() - _cache["at"]) / 60) if _cache["at"] else None
+    except Exception as e:
+        out["mongodb"] = f"error: {type(e).__name__}: {e}"
+    try:
+        out["mapbox_token_set"] = bool(mapbox_token())
+    except RuntimeError as e:
+        out["mapbox_token_set"] = str(e)
+    return _no_store(jsonify(out))
+
+
 @app.get("/api/stats.json")
 def stats():
     return _json_response("stats_gz", "application/json", "public, max-age=600")
@@ -585,10 +563,6 @@ def index():
 @app.get("/<path:path>")
 def frontend_files(path):
     return send_from_directory(FRONTEND_DIR, path)
-
-
-if "--export" not in sys.argv and "--refresh-snapshot" not in sys.argv:
-    start_background_refresh()
 
 
 if __name__ == "__main__":
