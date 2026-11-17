@@ -57,6 +57,11 @@ from flask import Flask, Response, jsonify, request, send_from_directory
 import data as d
 import whale_regions as R
 
+try:                                        # show log lines on Render right away
+    sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 # Folder holding webmap.html / App.js / species_description.csv / imgs. Change if yours lives elsewhere.
 FRONTEND_DIR = os.path.abspath(os.environ.get("FRONTEND_DIR", os.path.join(HERE, "..", "Frontend")))
@@ -265,6 +270,7 @@ def build_stats(s: pd.DataFrame, t: pd.DataFrame, species: pd.DataFrame) -> dict
 _cache = {"body": None, "body_gz": None, "stats": None, "stats_gz": None, "at": 0.0, "count": 0}
 _lock = threading.Lock()
 _ready = threading.Event()
+_status = {"started": time.time(), "last_error": None}
 
 
 def _gz(text: str) -> bytes:
@@ -273,13 +279,16 @@ def _gz(text: str) -> bytes:
 
 def refresh_data():
     """Read Supabase and rebuild everything. Keeps the previous copy if it fails."""
+    began = time.time()
+    print("Reading sightings from Supabase...")
     try:
         s, t, species = load_clean_data()
         fc = to_feature_collection(s)
         body = json.dumps(fc, separators=(",", ":"))
         new = {"body": body, "body_gz": _gz(body), "at": time.time(), "count": len(fc["features"])}
     except Exception as e:
-        print(f"Refresh failed ({e}); serving the previous data.")
+        _status["last_error"] = f"{type(e).__name__}: {e}"
+        print(f"Refresh failed ({_status['last_error']}); serving the previous data.")
         return
     try:                                    # a stats bug must never take the map down
         stats = json.dumps(build_stats(s, t, species), separators=(",", ":"))
@@ -288,8 +297,9 @@ def refresh_data():
         print(f"Stats failed ({e}); keeping the previous stats.")
     with _lock:
         _cache.update(new)
+    _status["last_error"] = None
     _ready.set()
-    print(f"Loaded {new['count']:,} cleaned sightings from Supabase.")
+    print(f"Loaded {new['count']:,} cleaned sightings from Supabase in {time.time() - began:.0f} s.")
 
 
 def _background_refresh():
@@ -311,8 +321,11 @@ def start_background_refresh():
 def _wait_for_data(key: str):
     """The saved copy; on a fresh start, waits (up to 2 minutes) for the first load."""
     start_background_refresh()
-    if not _ready.wait(timeout=120):
-        raise RuntimeError("The data is still loading. Try again in a minute.")
+    if not _ready.wait(timeout=90):
+        waited = int(time.time() - _status["started"])
+        reason = f" The last attempt failed: {_status['last_error']}" if _status["last_error"] else ""
+        raise RuntimeError(f"The data is still loading (server started {waited} s ago). "
+                           f"Try again in a minute.{reason}")
     with _lock:
         if _cache[key] is None:
             raise RuntimeError("Stats aren't available yet.")
