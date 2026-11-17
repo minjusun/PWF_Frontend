@@ -7,7 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
 <style>
   /* Same colors and fonts as the map */
   :root {
@@ -75,17 +74,21 @@
   .facts { display: flex; gap: 28px; margin: 12px 0 16px; flex-wrap: wrap; }
   .facts div { color: var(--muted); font-size: 13px; }
   .facts strong { display: block; color: var(--text); font-size: 18px; font-weight: 600; }
-  .chart { position: relative; height: 180px; }
-  #sightings .chart { height: 280px; }
+  .chart { height: 170px; }
+  #sightings .chart { height: 240px; }
 
   /* Sightings */
   .bar-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
   .totals { color: var(--muted); margin: -6px 0 14px; }
   .totals strong { color: var(--text); font-weight: 600; }
-  .toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
-  .toggle button { font: inherit; font-size: 13px; color: var(--muted); background: none; border: 0; border-radius: 999px; padding: 5px 14px; cursor: pointer; }
-  .toggle button[aria-pressed="true"] { background: var(--accent); color: var(--bg); font-weight: 600; }
-  .legend { display: flex; gap: 20px; flex-wrap: wrap; margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+  /* Plain HTML bars: nothing extra to download */
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 100%; }
+  .bars .col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; }
+  .bars .stack { display: flex; flex-direction: column-reverse; border-radius: 3px 3px 0 0; overflow: hidden; min-height: 1px; }
+  .bars .stack i { display: block; }
+  .bars .lab { font-size: 11px; overflow: visible; color: var(--muted); text-align: center; margin-top: 5px; white-space: nowrap; overflow: hidden; }
+  .chart { display: flex; flex-direction: column; }
+  .legend { display: flex; gap: 6px 18px; flex-wrap: wrap; margin: 0 0 12px; font-size: 13px; color: var(--muted); }
   .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 7px; background: var(--c); vertical-align: -1px; }
   .legend b { color: var(--text); font-weight: 600; }
 
@@ -159,12 +162,17 @@
     return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   };
 
-  function chartDefaults() {
-    Chart.defaults.font.family = '"Open Sans", "Helvetica Neue", Arial, sans-serif';
-    Chart.defaults.font.size = 12;
-    Chart.defaults.color = css('--muted');
-    Chart.defaults.borderColor = css('--line');
-    Chart.defaults.animation = matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { duration: 500 };
+  // One column per period; each column is a stack of colored pieces.
+  function barsHtml(rows, keys, labelOf, titleOf) {
+    const totals = rows.map(r => keys.reduce((t, k) => t + (r[k.key] || 0), 0));
+    const max = Math.max(...totals, 1);
+    return `<div class="bars">${rows.map((r, i) => `
+      <div class="col" title="${titleOf(r, totals[i])}">
+        <div class="stack" style="height:${(totals[i] / max * 100).toFixed(1)}%">
+          ${keys.map(k => r[k.key] ? `<i style="flex:${r[k.key]};background:var(${k.color})"></i>` : '').join('')}
+        </div>
+        <div class="lab">${labelOf(r, i)}</div>
+      </div>`).join('')}</div>`;
   }
 
   function setBody(id, html) {
@@ -176,31 +184,18 @@
   }
 
   function renderActiveUsers(a) {
-    const panel = setBody('active-users', `
+    const bars = barsHtml(a.monthly, [{ key: 'users', color: '--accent' }],
+      r => monthLabel(r.period).slice(0, 1),
+      r => `${monthLong(r.period)}: ${fmt(r.users)} active users`);
+    setBody('active-users', `
       <div class="headline"><span class="num">${fmt(a.this_month)}</span>
         <span class="label">active this month</span></div>
       <div class="facts">
         <div><strong>${fmt(a.last_30_days)}</strong>in the last 30 days</div>
         <div><strong>${fmt(a.all_time)}</strong>contributors all time</div>
       </div>
-      <div class="chart"><canvas aria-label="Active users per month, last 12 months" role="img"></canvas></div>
-      <p class="note">Active means they logged at least one trip or sighting that month.</p>`);
-    if (!panel) return;
-    new Chart(panel.querySelector('canvas'), {
-      type: 'line',
-      data: {
-        labels: a.monthly.map(m => monthLabel(m.period)),
-        datasets: [{ data: a.monthly.map(m => m.users), borderColor: css('--accent'), backgroundColor: css('--accent') + '22',
-                     fill: true, tension: .35, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2 }]
-      },
-      options: {
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false },
-                   tooltip: { callbacks: { title: items => monthLong(a.monthly[items[0].dataIndex].period),
-                                            label: c => `${fmt(c.parsed.y)} active users` } } },
-        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } }
-      }
-    });
+      <div class="chart" role="img" aria-label="Active users per month, last 12 months">${bars}</div>
+      <p class="note">Active means they logged at least one trip or sighting that month. Last 12 months shown.</p>`);
   }
 
   function renderSightings(s) {
@@ -208,47 +203,19 @@
       const t = s.groups.find(x => x.group === g.key) || { animals: 0 };
       return `<span style="--c: var(${g.color})">${g.label} <b>${fmt(t.animals)}</b></span>`;
     }).join('');
-    const panel = setBody('sightings', `
-      <div class="bar-head">
-        <p class="totals"><strong>${fmt(s.total_animals)}</strong> animals counted across
-          <strong>${fmt(s.total_sightings)}</strong> sightings</p>
-        <div class="toggle" role="group" aria-label="Time range">
-          <button type="button" data-range="year" aria-pressed="true">By year</button>
-          <button type="button" data-range="month" aria-pressed="false">Last 12 months</button>
-        </div>
-      </div>
+    const rows = s.by_year;
+    const every = Math.ceil(rows.length / 12);              // keep year labels readable
+    const bars = barsHtml(rows, GROUPS,
+      (r, i) => (i % every === 0 || i === rows.length - 1)
+                  ? (rows.length > 6 ? '’' + r.period.slice(2) : r.period) : '',
+      (r, total) => `${r.period}: ${fmt(total)} animals (` +
+                    GROUPS.map(g => `${g.label} ${fmt(r[g.key])}`).join(', ') + ')');
+    setBody('sightings', `
+      <p class="totals"><strong>${fmt(s.total_animals)}</strong> animals counted across
+        <strong>${fmt(s.total_sightings)}</strong> sightings</p>
       <div class="legend">${legend}</div>
-      <div class="chart"><canvas aria-label="Animals counted, by species group" role="img"></canvas></div>
-      <p class="note">Whales, dolphins and porpoises, plus sightings logged as unknown. Marine debris is not included.</p>`);
-    if (!panel) return;
-
-    const rows = range => range === 'year' ? s.by_year : s.by_month;
-    const labels = range => rows(range).map(r => range === 'year' ? r.period : monthLabel(r.period));
-    const chart = new Chart(panel.querySelector('canvas'), {
-      type: 'bar',
-      data: {
-        labels: labels('year'),
-        datasets: GROUPS.map(g => ({ label: g.label, data: rows('year').map(r => r[g.key]),
-                                     backgroundColor: css(g.color), borderRadius: 2, stack: 'a' }))
-      },
-      options: {
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { display: false },
-                   tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y)}`,
-                                            footer: items => `Total: ${fmt(items.reduce((t, i) => t + i.parsed.y, 0))}` } } },
-        scales: { x: { stacked: true, grid: { display: false } },
-                  y: { stacked: true, beginAtZero: true, ticks: { callback: v => fmt(v) } } }
-      }
-    });
-
-    panel.querySelectorAll('.toggle button').forEach(btn => btn.addEventListener('click', () => {
-      const range = btn.dataset.range;
-      panel.querySelectorAll('.toggle button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
-      chart.data.labels = labels(range);
-      chart.data.datasets.forEach((ds, i) => { ds.data = rows(range).map(r => r[GROUPS[i].key]); });
-      chart.update();
-    }));
+      <div class="chart" role="img" aria-label="Animals counted per year, by species group">${bars}</div>
+      <p class="note">Per year. Whales, dolphins and porpoises, plus sightings logged as unknown. Marine debris is not included.</p>`);
   }
 
   function renderContributors(list) {
@@ -276,7 +243,6 @@
       const res = await fetch('/api/stats.json', { cache: 'no-cache' });
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
-      chartDefaults();
       renderActiveUsers(data.active_users);
       renderSightings(data.sightings);
       renderContributors(data.contributors);

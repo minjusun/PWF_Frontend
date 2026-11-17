@@ -40,9 +40,11 @@ Optional env vars:
 Needs: pip install pymongo
 """
 import argparse
+import gzip
 import hashlib
 import json
 import os
+import sys
 import threading
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -257,42 +259,84 @@ def build_stats(s: pd.DataFrame, t: pd.DataFrame, species: pd.DataFrame) -> dict
 
 
 # ── Cached JSON (map points + stats share one hourly Supabase read) ───────────
-_cache = {"body": None, "stats": None, "at": 0.0, "count": 0}
+# A background thread loads the data when the server starts and refreshes it every hour,
+# so visitors are always served the saved copy and never wait for Supabase.
+# Each response is also kept gzipped (the sightings shrink from ~14 MB to ~1.5 MB).
+_cache = {"body": None, "body_gz": None, "stats": None, "stats_gz": None, "at": 0.0, "count": 0}
 _lock = threading.Lock()
+_ready = threading.Event()
 
 
-def _refresh_if_stale():
-    """Call with _lock held."""
-    if _cache["body"] is not None and time.time() - _cache["at"] <= CACHE_SECONDS:
-        return
+def _gz(text: str) -> bytes:
+    return gzip.compress(text.encode("utf-8"), compresslevel=6)
+
+
+def refresh_data():
+    """Read Supabase and rebuild everything. Keeps the previous copy if it fails."""
     try:
         s, t, species = load_clean_data()
         fc = to_feature_collection(s)
-        _cache.update(body=json.dumps(fc, separators=(",", ":")), at=time.time(), count=len(fc["features"]))
-        print(f"Loaded {_cache['count']:,} cleaned sightings from Supabase.")
-    except Exception:
-        if _cache["body"] is None:
-            raise                           # nothing to fall back on
-        print("Refresh failed; serving the previous data.")
+        body = json.dumps(fc, separators=(",", ":"))
+        new = {"body": body, "body_gz": _gz(body), "at": time.time(), "count": len(fc["features"])}
+    except Exception as e:
+        print(f"Refresh failed ({e}); serving the previous data.")
         return
     try:                                    # a stats bug must never take the map down
-        _cache["stats"] = json.dumps(build_stats(s, t, species), separators=(",", ":"))
+        stats = json.dumps(build_stats(s, t, species), separators=(",", ":"))
+        new.update(stats=stats, stats_gz=_gz(stats))
     except Exception as e:
         print(f"Stats failed ({e}); keeping the previous stats.")
+    with _lock:
+        _cache.update(new)
+    _ready.set()
+    print(f"Loaded {new['count']:,} cleaned sightings from Supabase.")
+
+
+def _background_refresh():
+    while True:
+        refresh_data()
+        time.sleep(CACHE_SECONDS if _ready.is_set() else 60)   # retry sooner if the first load failed
+
+
+_bg_started = False
+
+
+def start_background_refresh():
+    global _bg_started
+    if not _bg_started:
+        _bg_started = True
+        threading.Thread(target=_background_refresh, daemon=True).start()
+
+
+def _wait_for_data(key: str):
+    """The saved copy; on a fresh start, waits (up to 2 minutes) for the first load."""
+    start_background_refresh()
+    if not _ready.wait(timeout=120):
+        raise RuntimeError("The data is still loading. Try again in a minute.")
+    with _lock:
+        if _cache[key] is None:
+            raise RuntimeError("Stats aren't available yet.")
+        return _cache[key], _cache[key + "_gz"]
 
 
 def points_json() -> str:
-    with _lock:
-        _refresh_if_stale()
-        return _cache["body"]
+    return _wait_for_data("body")[0]
 
 
 def stats_json() -> str:
-    with _lock:
-        _refresh_if_stale()
-        if _cache["stats"] is None:
-            raise RuntimeError("Stats aren't available yet.")
-        return _cache["stats"]
+    return _wait_for_data("stats")[0]
+
+
+def _json_response(key: str, mimetype: str, cache_control: str):
+    try:
+        plain, packed = _wait_for_data(key)
+    except Exception as e:
+        return Response(json.dumps({"error": str(e)}), status=502, mimetype="application/json")
+    headers = {"Cache-Control": cache_control, "Vary": "Accept-Encoding"}
+    if "gzip" in request.headers.get("Accept-Encoding", ""):
+        headers["Content-Encoding"] = "gzip"
+        return Response(packed, mimetype=mimetype, headers=headers)
+    return Response(plain, mimetype=mimetype, headers=headers)
 
 
 # ── Mapbox map-load counter in MongoDB (hard monthly cap) ────────────────────
@@ -409,11 +453,7 @@ def _no_store(resp):
 
 @app.get("/api/points.geojson")
 def points():
-    try:
-        body = points_json()
-    except Exception as e:
-        return Response(json.dumps({"error": str(e)}), status=502, mimetype="application/json")
-    return Response(body, mimetype="application/geo+json", headers={"Cache-Control": "no-store"})
+    return _json_response("body", "application/geo+json", "public, max-age=600")
 
 
 @app.post("/api/map-load")
@@ -451,11 +491,7 @@ def map_load_status():
 
 @app.get("/api/stats.json")
 def stats():
-    try:
-        body = stats_json()
-    except Exception as e:
-        return Response(json.dumps({"error": str(e)}), status=502, mimetype="application/json")
-    return Response(body, mimetype="application/json", headers={"Cache-Control": "public, max-age=300"})
+    return _json_response("stats", "application/json", "public, max-age=600")
 
 
 STATS_VIEWS = {"active-users", "sightings", "contributors"}
@@ -479,6 +515,10 @@ def frontend_files(path):
     return send_from_directory(FRONTEND_DIR, path)
 
 
+if "--export" not in sys.argv:
+    start_background_refresh()
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Serve the whale map with cleaned Supabase data.")
     ap.add_argument("--export", metavar="FILE", help="write the cleaned GeoJSON to FILE and exit")
@@ -486,8 +526,9 @@ if __name__ == "__main__":
     args = ap.parse_args()
 
     if args.export:
+        refresh_data()
         with open(args.export, "w", encoding="utf-8") as f:
-            f.write(points_json())
+            f.write(_cache["body"])
         print(f"Wrote {_cache['count']:,} sightings to {args.export}")
     else:
         if not os.path.exists(os.path.join(FRONTEND_DIR, "webmap.html")):
@@ -499,6 +540,5 @@ if __name__ == "__main__":
             print(f"Map loads this billing month: {current_count()['count']:,} of {MAP_LOAD_LIMIT:,}")
         except (PyMongoError, RuntimeError) as e:
             print(f"Warning: can't reach MongoDB ({e}); the map won't open until it can.")
-        threading.Thread(target=points_json, daemon=True).start()   # warm the cache while the page loads
         print(f"Serving {FRONTEND_DIR} on http://localhost:{args.port}")
         app.run(host="127.0.0.1", port=args.port)
