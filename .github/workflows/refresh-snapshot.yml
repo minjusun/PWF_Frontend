@@ -1,0 +1,44 @@
+# Refreshes the map data every hour.
+# Reads the sightings from Supabase, cleans them (same rules as the dashboard), and saves the
+# result to MongoDB. The Render server picks up the new copy within 5 minutes.
+#
+# Goes in the repo at:  .github/workflows/refresh-snapshot.yml
+# Needs these repository secrets (Settings > Secrets and variables > Actions):
+#   SUPABASE_URL, SUPABASE_KEY, MONGODB_URI
+
+name: Refresh map data
+
+on:
+  schedule:
+    - cron: "0 * * * *"      # every hour, on the hour (UTC). GitHub may start it a few minutes late.
+  workflow_dispatch:          # adds a "Run workflow" button so you can refresh by hand
+
+concurrency:
+  group: refresh-snapshot     # never run two refreshes at once
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: DashBoard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: DashBoard/requirements.txt
+
+      - name: Install packages
+        run: pip install -r requirements.txt
+
+      - name: Read Supabase and save the snapshot to MongoDB
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: python map_api.py --refresh-snapshot
