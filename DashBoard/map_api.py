@@ -552,7 +552,15 @@ STATS_VIEWS = {"active-users", "sightings", "contributors"}
 def stats_page(view=None):
     if view is not None and view not in STATS_VIEWS:
         return Response("Not found", status=404)
-    return send_from_directory(FRONTEND_DIR, "stats.html")
+    with open(os.path.join(FRONTEND_DIR, "stats.html"), encoding="utf-8") as f:
+        page = f.read()
+    # Put the numbers straight into the page, so the charts draw without a second request.
+    try:
+        data = stats_json().replace("</", "<\\/")
+        page = page.replace("</head>", f"<script>window.__STATS__={data};</script>\n</head>", 1)
+    except Exception as e:
+        print(f"Stats page without inlined data ({e}).")   # the page fetches them itself instead
+    return _no_store(Response(page, mimetype="text/html"))
 
 
 @app.get("/")

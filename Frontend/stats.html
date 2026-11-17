@@ -13,6 +13,7 @@
     --bg: #ffffff;
     --panel: #ffffff;
     --line: #e1ecf4;
+    --axis: #b9c9d8;
     --text: #0b2236;
     --muted: #5b6f82;
     --accent: #a5ddf7;
@@ -26,6 +27,7 @@
     --bg: #020714;
     --panel: #0a1428;
     --line: #1c2a45;
+    --axis: #3a4c6d;
     --text: #ffffff;
     --muted: #9fb0c8;
     --accent: #a5ddf7;
@@ -83,12 +85,20 @@
   .bar-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
   .totals { color: var(--muted); margin: -6px 0 14px; }
   .totals strong { color: var(--text); font-weight: 600; }
-  /* Plain HTML bars: nothing extra to download */
-  .bars { display: flex; align-items: flex-end; gap: 4px; height: 100%; }
-  .bars .col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; }
-  .bars .stack { display: flex; flex-direction: column-reverse; border-radius: 3px 3px 0 0; overflow: hidden; min-height: 1px; }
+  /* Plain HTML bar chart with a y-axis, gridlines and x labels (nothing extra to download) */
+  .plot { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr auto auto; height: 100%; min-height: 0; column-gap: 6px; }
+  .plot .ytitle { grid-column: 1 / 3; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .plot .yaxis { position: relative; min-width: 24px; }
+  .plot .yaxis span { position: absolute; right: 0; transform: translateY(50%); font-size: 11px; color: var(--muted); line-height: 1; white-space: nowrap; }
+  .plot .area { position: relative; border-left: 1px solid var(--axis); border-bottom: 1px solid var(--axis); min-height: 0; }
+  .plot .grid { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--line); }
+  .bars { position: absolute; inset: 0 2px 0 3px; display: flex; align-items: flex-end; gap: 3px; }
+  .bars .col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; }
+  .bars .stack { width: 100%; display: flex; flex-direction: column-reverse; border-radius: 2px 2px 0 0; overflow: hidden; }
   .bars .stack i { display: block; }
-  .bars .lab { font-size: 11px; overflow: visible; color: var(--muted); text-align: center; margin-top: 5px; white-space: nowrap; overflow: hidden; }
+  .plot .xlabels { grid-column: 2; display: flex; gap: 3px; padding: 0 2px 0 3px; margin-top: 4px; }
+  .plot .xlabels span { flex: 1 1 0; min-width: 0; text-align: center; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: visible; }
+  .plot .xtitle { grid-column: 2; text-align: center; font-size: 11px; color: var(--muted); margin-top: 2px; }
   .chart { display: flex; flex-direction: column; }
   .legend { display: flex; gap: 6px 18px; flex-wrap: wrap; margin: 0 0 12px; font-size: 13px; color: var(--muted); }
   .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 7px; background: var(--c); vertical-align: -1px; }
@@ -169,17 +179,41 @@
     return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   };
 
-  // One column per period; each column is a stack of colored pieces.
-  function barsHtml(rows, keys, labelOf, titleOf) {
+  // A round top for the y-axis (e.g. 37 -> 40, 1,830 -> 2,000) with 4 even steps.
+  function niceScale(max) {
+    if (max <= 0) return { top: 4, step: 1 };
+    const raw = max / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(st => st >= raw);
+    const s = Math.max(1, step);
+    const st = max < 4 ? 1 : s;                       // small counts: whole numbers only
+    return { top: Math.ceil(max / st) * st, step: st };
+  }
+  const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+  const tickText = v => v >= 10000 ? compact.format(v) : fmt(v);
+
+  // Bar chart with a labeled y-axis. Each column is a stack of colored pieces.
+  function barsHtml(rows, keys, labelOf, titleOf, yTitle, xTitle) {
     const totals = rows.map(r => keys.reduce((t, k) => t + (r[k.key] || 0), 0));
-    const max = Math.max(...totals, 1);
-    return `<div class="bars">${rows.map((r, i) => `
-      <div class="col" title="${titleOf(r, totals[i])}">
-        <div class="stack" style="height:${(totals[i] / max * 100).toFixed(1)}%">
-          ${keys.map(k => r[k.key] ? `<i style="flex:${r[k.key]};background:var(${k.color})"></i>` : '').join('')}
-        </div>
-        <div class="lab">${labelOf(r, i)}</div>
-      </div>`).join('')}</div>`;
+    const { top, step } = niceScale(Math.max(...totals, 0));
+    const ticks = [];
+    for (let v = 0; v <= top + step / 2; v += step) ticks.push(v);
+    const pct = v => (v / top * 100).toFixed(2) + '%';
+    return `<div class="plot">
+      <div class="ytitle">${yTitle}</div>
+      <div class="yaxis" aria-hidden="true">${ticks.map(v => `<span style="bottom:${pct(v)}">${tickText(v)}</span>`).join('')}</div>
+      <div class="area">
+        ${ticks.slice(1).map(v => `<div class="grid" style="bottom:${pct(v)}"></div>`).join('')}
+        <div class="bars">${rows.map((r, i) => `
+          <div class="col" title="${titleOf(r, totals[i])}">
+            <div class="stack" style="height:${pct(totals[i])}">
+              ${keys.map(k => r[k.key] ? `<i style="flex:${r[k.key]};background:var(${k.color})"></i>` : '').join('')}
+            </div>
+          </div>`).join('')}</div>
+      </div>
+      <div class="xlabels" aria-hidden="true">${rows.map((r, i) => `<span>${labelOf(r, i)}</span>`).join('')}</div>
+      <div class="xtitle">${xTitle}</div>
+    </div>`;
   }
 
   function setBody(id, html) {
@@ -191,18 +225,23 @@
   }
 
   function renderActiveUsers(a) {
-    const bars = barsHtml(a.monthly, [{ key: 'users', color: '--accent' }],
-      r => monthLabel(r.period).slice(0, 1),
-      r => `${monthLong(r.period)}: ${fmt(r.users)} active users`);
+    const months = a.monthly;
+    const thisMonth = months[months.length - 1];
+    const lastMonth = months[months.length - 2];
+    const monthName = p => monthLong(p).split(' ')[0];
+    const bars = barsHtml(months, [{ key: 'users', color: '--accent' }],
+      r => monthLabel(r.period),
+      r => `${monthLong(r.period)}: ${fmt(r.users)} active users`,
+      'Active users', 'Month');
     setBody('active-users', `
-      <div class="headline"><span class="num">${fmt(a.this_month)}</span>
-        <span class="label">active this month</span></div>
+      <div class="headline"><span class="num">${fmt(thisMonth.users)}</span>
+        <span class="label">active so far in ${monthName(thisMonth.period)}</span></div>
       <div class="facts">
-        <div><strong>${fmt(a.last_30_days)}</strong>in the last 30 days</div>
+        ${lastMonth ? `<div><strong>${fmt(lastMonth.users)}</strong>active in ${monthName(lastMonth.period)}</div>` : ''}
         <div><strong>${fmt(a.all_time)}</strong>contributors all time</div>
       </div>
       <div class="chart" role="img" aria-label="Active users per month, last 12 months">${bars}</div>
-      <p class="note">Active means they logged at least one trip or sighting that month. Last 12 months shown.</p>`);
+      <p class="note">Active means they logged at least one trip or sighting that month.</p>`);
   }
 
   function renderSightings(s) {
@@ -231,13 +270,13 @@
       const rows = byYear ? s.by_year : s.by_month;
       const every = byYear ? Math.ceil(rows.length / 12) : 1;   // keep labels readable
       const label = (r, i) => {
-        if (!byYear) return monthLabel(r.period).slice(0, 1);
+        if (!byYear) return monthLabel(r.period);
         if (i % every !== 0 && i !== rows.length - 1) return '';
         return rows.length > 6 ? '’' + r.period.slice(2) : r.period;
       };
       const title = (r, total) => `${byYear ? r.period : monthLong(r.period)}: ${fmt(total)} animals (` +
         GROUPS.map(g => `${g.label} ${fmt(r[g.key])}`).join(', ') + ')';
-      chart.innerHTML = barsHtml(rows, GROUPS, label, title);
+      chart.innerHTML = barsHtml(rows, GROUPS, label, title, 'Animals counted', byYear ? 'Year' : 'Month');
       chart.setAttribute('aria-label', byYear ? 'Animals counted per year, by species group'
                                               : 'Animals counted per month, last 12 months, by species group');
       note.textContent = (byYear ? 'Per year. ' : 'Per month, last 12 months. ') +
@@ -272,9 +311,12 @@
 
   async function load(attempt = 1) {
     try {
-      const res = await fetch('/api/stats.json', { cache: 'no-cache' });
-      if (!res.ok) throw new Error(res.status);
-      const data = await res.json();
+      let data = window.__STATS__;              // filled in by the server, so no extra request
+      if (!data) {
+        const res = await fetch('/api/stats.json', { cache: 'no-cache' });
+        if (!res.ok) throw new Error(res.status);
+        data = await res.json();
+      }
       renderActiveUsers(data.active_users);
       renderSightings(data.sightings);
       renderContributors(data.contributors);
