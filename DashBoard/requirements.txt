@@ -1,10 +1,16 @@
-# Packages map_api.py needs on Render.
-# If this folder already has a requirements.txt for the Streamlit dashboard,
-# add any of these lines that are missing instead of replacing that file.
+# Streamlit dashboard (app.py)
+streamlit
+plotly
+folium
+streamlit-folium
+
+# map_api.py on Render
 flask
 gunicorn
+pymongo
+
+# Shared by both
 pandas
 numpy
-pymongo
-supabase
+supabase>=2.0
 shapely
