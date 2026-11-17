@@ -227,7 +227,6 @@
   function renderActiveUsers(a) {
     const months = a.monthly;
     const thisMonth = months[months.length - 1];
-    const lastMonth = months[months.length - 2];
     const monthName = p => monthLong(p).split(' ')[0];
     const bars = barsHtml(months, [{ key: 'users', color: '--accent' }],
       r => monthLabel(r.period),
@@ -237,7 +236,6 @@
       <div class="headline"><span class="num">${fmt(thisMonth.users)}</span>
         <span class="label">active so far in ${monthName(thisMonth.period)}</span></div>
       <div class="facts">
-        ${lastMonth ? `<div><strong>${fmt(lastMonth.users)}</strong>active in ${monthName(lastMonth.period)}</div>` : ''}
         <div><strong>${fmt(a.all_time)}</strong>contributors all time</div>
       </div>
       <div class="chart" role="img" aria-label="Active users per month, last 12 months">${bars}</div>
