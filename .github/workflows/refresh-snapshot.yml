@@ -10,7 +10,7 @@ name: Refresh map data
 
 on:
   schedule:
-    - cron: "0 * * * *"      # every hour, on the hour (UTC). GitHub may start it a few minutes late.
+    - cron: "0 */2 * * *"      # every hour, on the hour (UTC). GitHub may start it a few minutes late.
   workflow_dispatch:          # adds a "Run workflow" button so you can refresh by hand
 
 concurrency:
