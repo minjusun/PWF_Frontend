@@ -8,30 +8,32 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  /* Same colors and fonts as the map */
+  /* White and light blue by default; add ?theme=dark for the map's navy */
   :root {
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --line: #e1ecf4;
+    --text: #0b2236;
+    --muted: #5b6f82;
+    --accent: #a5ddf7;
+    --accent-ink: #2a87b8;
+    --whales: #a5ddf7;
+    --dolphins: #4a9fd0;
+    --unknown: #d3dde6;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
     --bg: #020714;
     --panel: #0a1428;
     --line: #1c2a45;
     --text: #ffffff;
     --muted: #9fb0c8;
     --accent: #a5ddf7;
+    --accent-ink: #a5ddf7;
     --whales: #a5ddf7;
     --dolphins: #4fb8a8;
     --unknown: #7d8aa3;
     color-scheme: dark;
-  }
-  :root[data-theme="light"] {
-    --bg: #ffffff;
-    --panel: #f3f7fb;
-    --line: #d7e1ec;
-    --text: #020714;
-    --muted: #4d5d75;
-    --accent: #1f6f9b;
-    --whales: #2f8fc4;
-    --dolphins: #2a9584;
-    --unknown: #8a94a6;
-    color-scheme: light;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
@@ -69,7 +71,7 @@
 
   /* Active users */
   .headline { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-  .headline .num { font-size: 56px; line-height: 1; color: var(--accent); }
+  .headline .num { font-size: 56px; line-height: 1; color: var(--accent-ink); }
   .headline .label { color: var(--muted); }
   .facts { display: flex; gap: 28px; margin: 12px 0 16px; flex-wrap: wrap; }
   .facts div { color: var(--muted); font-size: 13px; }
@@ -96,7 +98,7 @@
   ol.leaders { list-style: none; margin: 0; padding: 0; counter-reset: rank; }
   ol.leaders li { counter-increment: rank; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 4px 12px; padding: 11px 0; border-top: 1px solid var(--line); }
   ol.leaders li:first-child { border-top: 0; padding-top: 2px; }
-  ol.leaders li::before { content: counter(rank); font-family: "Anton", Impact, sans-serif; font-size: 26px; line-height: 1; color: var(--accent); grid-row: span 2; }
+  ol.leaders li::before { content: counter(rank); font-family: "Anton", Impact, sans-serif; font-size: 26px; line-height: 1; color: var(--accent-ink); grid-row: span 2; }
   .who { font-weight: 600; overflow-wrap: anywhere; }
   .count { font-weight: 600; text-align: right; white-space: nowrap; }
   .meter { grid-column: 2 / 4; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
@@ -105,7 +107,12 @@
 
   .status { color: var(--muted); padding: 24px 0; }
   .updated { color: var(--muted); font-size: 13px; margin-top: 22px; }
-  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+  .toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; flex: none; }
+  .toggle button { font: inherit; font-size: 13px; color: var(--muted); background: none; border: 0; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  .toggle button[aria-pressed="true"] { background: var(--accent); color: var(--text); font-weight: 600; }
+  .bar-head { display: flex; justify-content: space-between; align-items: center; gap: 10px 16px; flex-wrap: wrap; margin: -4px 0 12px; }
+  .bar-head .totals { margin: 0; }
 </style>
 </head>
 <body>
@@ -136,7 +143,7 @@
 <script>
 (function () {
   const params = new URLSearchParams(location.search);
-  if (params.get('theme') === 'light') document.documentElement.dataset.theme = 'light';
+  if (params.get('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
 
   // /stats/active-users, /stats/sightings or /stats/contributors show just that panel
   const VIEWS = ['active-users', 'sightings', 'contributors'];
@@ -203,19 +210,44 @@
       const t = s.groups.find(x => x.group === g.key) || { animals: 0 };
       return `<span style="--c: var(${g.color})">${g.label} <b>${fmt(t.animals)}</b></span>`;
     }).join('');
-    const rows = s.by_year;
-    const every = Math.ceil(rows.length / 12);              // keep year labels readable
-    const bars = barsHtml(rows, GROUPS,
-      (r, i) => (i % every === 0 || i === rows.length - 1)
-                  ? (rows.length > 6 ? '’' + r.period.slice(2) : r.period) : '',
-      (r, total) => `${r.period}: ${fmt(total)} animals (` +
-                    GROUPS.map(g => `${g.label} ${fmt(r[g.key])}`).join(', ') + ')');
-    setBody('sightings', `
-      <p class="totals"><strong>${fmt(s.total_animals)}</strong> animals counted across
-        <strong>${fmt(s.total_sightings)}</strong> sightings</p>
+    const panel = setBody('sightings', `
+      <div class="bar-head">
+        <p class="totals"><strong>${fmt(s.total_animals)}</strong> animals counted across
+          <strong>${fmt(s.total_sightings)}</strong> sightings</p>
+        <div class="toggle" role="group" aria-label="Time range">
+          <button type="button" data-range="year" aria-pressed="true">By year</button>
+          <button type="button" data-range="month" aria-pressed="false">Last 12 months</button>
+        </div>
+      </div>
       <div class="legend">${legend}</div>
-      <div class="chart" role="img" aria-label="Animals counted per year, by species group">${bars}</div>
-      <p class="note">Per year. Whales, dolphins and porpoises, plus sightings logged as unknown. Marine debris is not included.</p>`);
+      <div class="chart" role="img"></div>
+      <p class="note"></p>`);
+    if (!panel) return;
+    const chart = panel.querySelector('.chart');
+    const note = panel.querySelector('.note');
+
+    function draw(range) {
+      const byYear = range === 'year';
+      const rows = byYear ? s.by_year : s.by_month;
+      const every = byYear ? Math.ceil(rows.length / 12) : 1;   // keep labels readable
+      const label = (r, i) => {
+        if (!byYear) return monthLabel(r.period).slice(0, 1);
+        if (i % every !== 0 && i !== rows.length - 1) return '';
+        return rows.length > 6 ? '’' + r.period.slice(2) : r.period;
+      };
+      const title = (r, total) => `${byYear ? r.period : monthLong(r.period)}: ${fmt(total)} animals (` +
+        GROUPS.map(g => `${g.label} ${fmt(r[g.key])}`).join(', ') + ')';
+      chart.innerHTML = barsHtml(rows, GROUPS, label, title);
+      chart.setAttribute('aria-label', byYear ? 'Animals counted per year, by species group'
+                                              : 'Animals counted per month, last 12 months, by species group');
+      note.textContent = (byYear ? 'Per year. ' : 'Per month, last 12 months. ') +
+        'Whales, dolphins and porpoises, plus sightings logged as unknown. Marine debris is not included.';
+      panel.querySelectorAll('.toggle button').forEach(b =>
+        b.setAttribute('aria-pressed', String(b.dataset.range === range)));
+    }
+    panel.querySelectorAll('.toggle button').forEach(b =>
+      b.addEventListener('click', () => draw(b.dataset.range)));
+    draw('year');
   }
 
   function renderContributors(list) {
