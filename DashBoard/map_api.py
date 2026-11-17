@@ -34,12 +34,15 @@ Optional env vars:
   MAP_LOAD_LIMIT=45000          map loads allowed per billing month (Mapbox free tier is 50,000)
   MAPBOX_BILLING_DAY=1          day of the month your Mapbox billing period starts
   PER_VISITOR_DAILY_LIMIT=300   map loads one visitor (one internet address) can use per day
-  MONGODB_DB=whale_map          database that holds the counter collections
+  MONGODB_DB=whale_map          database that holds the counter and the saved data snapshot
+  REFRESH_ON_SERVER=1           0 = never read Supabase on this server; refresh the snapshot elsewhere
+                                with  python map_api.py --refresh-snapshot
   MAP_LOAD_COUNTER_FILE=...     old file-based count; if it exists, it's copied into MongoDB once
                                 at startup so the current month's count isn't lost
 Needs: pip install pymongo
 """
 import argparse
+import gc
 import gzip
 import hashlib
 import json
@@ -50,6 +53,7 @@ import time
 from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
+from bson import Binary
 from pymongo import MongoClient, ReturnDocument
 from pymongo.errors import DuplicateKeyError, PyMongoError
 from flask import Flask, Response, jsonify, request, send_from_directory
@@ -158,24 +162,31 @@ def _int(v):
     return None if v is None or pd.isna(v) else int(v)
 
 
+def _feature(r) -> dict:
+    return {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [round(float(r.lon), 6), round(float(r.lat), 6)]},
+        "properties": {
+            "sighting_id": _int(r.sighting_id),
+            "species_code": _txt(r.species_code),
+            "species_name": _txt(r.species_name),
+            "sighting_date_and_time_utc": r.ts.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "animals_total": _int(r.animals_total),
+            "animals_calf": _int(r.animals_calf),
+            "boat_name": _txt(r.boat_name),
+            "general_notes": _txt(r.general_notes),
+        },
+    }
+
+
 def to_feature_collection(s: pd.DataFrame) -> dict:
-    feats = []
-    for r in s.itertuples(index=False):
-        feats.append({
-            "type": "Feature",
-            "geometry": {"type": "Point", "coordinates": [round(float(r.lon), 6), round(float(r.lat), 6)]},
-            "properties": {
-                "sighting_id": _int(r.sighting_id),
-                "species_code": _txt(r.species_code),
-                "species_name": _txt(r.species_name),
-                "sighting_date_and_time_utc": r.ts.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "animals_total": _int(r.animals_total),
-                "animals_calf": _int(r.animals_calf),
-                "boat_name": _txt(r.boat_name),
-                "general_notes": _txt(r.general_notes),
-            },
-        })
-    return {"type": "FeatureCollection", "features": feats}
+    return {"type": "FeatureCollection", "features": [_feature(r) for r in s.itertuples(index=False)]}
+
+
+def geojson_text(s: pd.DataFrame) -> str:
+    """Same JSON as to_feature_collection, built with much less memory."""
+    parts = (json.dumps(_feature(r), separators=(",", ":")) for r in s.itertuples(index=False))
+    return '{"type":"FeatureCollection","features":[' + ",".join(parts) + "]}"
 
 
 # ── Stats page (active users, whale & dolphin sightings, top contributors) ──
@@ -263,11 +274,17 @@ def build_stats(s: pd.DataFrame, t: pd.DataFrame, species: pd.DataFrame) -> dict
             "active_users": active, "sightings": sightings, "contributors": contributors}
 
 
-# ── Cached JSON (map points + stats share one hourly Supabase read) ───────────
-# A background thread loads the data when the server starts and refreshes it every hour,
-# so visitors are always served the saved copy and never wait for Supabase.
-# Each response is also kept gzipped (the sightings shrink from ~14 MB to ~1.5 MB).
-_cache = {"body": None, "body_gz": None, "stats": None, "stats_gz": None, "at": 0.0, "count": 0}
+# ── Cached JSON (map points + stats share one Supabase read) ─────────────────
+# Reading and cleaning all sightings takes ~5 minutes on Render's free plan. So:
+#   * every finished load is saved (gzipped) in MongoDB, collection "snapshots";
+#   * when the server starts it loads that saved copy in a second or two, so a restart or
+#     wake-up never makes visitors wait;
+#   * a background thread refreshes from Supabase once the saved copy is CACHE_SECONDS old.
+# Set REFRESH_ON_SERVER=0 to never read Supabase on Render, and refresh the snapshot from
+# another computer instead with:   python map_api.py --refresh-snapshot
+REFRESH_ON_SERVER = os.environ.get("REFRESH_ON_SERVER", "1").strip().lower() not in ("0", "false", "no")
+
+_cache = {"body_gz": None, "stats_gz": None, "at": 0.0, "count": 0}
 _lock = threading.Lock()
 _ready = threading.Event()
 _status = {"started": time.time(), "last_error": None}
@@ -277,35 +294,77 @@ def _gz(text: str) -> bytes:
     return gzip.compress(text.encode("utf-8"), compresslevel=6)
 
 
-def refresh_data():
+def save_snapshot():
+    with _lock:
+        doc = {"_id": "latest", "points_gz": Binary(_cache["body_gz"]), "count": _cache["count"],
+               "stats_gz": Binary(_cache["stats_gz"]) if _cache["stats_gz"] else None, "at": _cache["at"]}
+    mongo_db().snapshots.replace_one({"_id": "latest"}, doc, upsert=True)
+
+
+def load_snapshot() -> bool:
+    """Use the copy saved in MongoDB. Returns True if there was one."""
+    try:
+        doc = mongo_db().snapshots.find_one({"_id": "latest"})
+    except Exception as e:
+        print(f"Couldn't read the saved snapshot ({e}).")
+        return False
+    if not doc or not doc.get("points_gz"):
+        return False
+    with _lock:
+        _cache.update(body_gz=bytes(doc["points_gz"]), count=doc.get("count", 0), at=doc.get("at", 0.0),
+                      stats_gz=bytes(doc["stats_gz"]) if doc.get("stats_gz") else None)
+    _ready.set()
+    age = (time.time() - _cache["at"]) / 60
+    print(f"Using the saved snapshot: {_cache['count']:,} sightings, {age:.0f} minutes old.")
+    return True
+
+
+def refresh_data(save=True) -> bool:
     """Read Supabase and rebuild everything. Keeps the previous copy if it fails."""
     began = time.time()
     print("Reading sightings from Supabase...")
     try:
         s, t, species = load_clean_data()
-        fc = to_feature_collection(s)
-        body = json.dumps(fc, separators=(",", ":"))
-        new = {"body": body, "body_gz": _gz(body), "at": time.time(), "count": len(fc["features"])}
+        count = len(s)
+        body_gz = _gz(geojson_text(s))
     except Exception as e:
         _status["last_error"] = f"{type(e).__name__}: {e}"
         print(f"Refresh failed ({_status['last_error']}); serving the previous data.")
-        return
+        return False
+    stats_gz = None
     try:                                    # a stats bug must never take the map down
-        stats = json.dumps(build_stats(s, t, species), separators=(",", ":"))
-        new.update(stats=stats, stats_gz=_gz(stats))
+        stats_gz = _gz(json.dumps(build_stats(s, t, species), separators=(",", ":")))
     except Exception as e:
         print(f"Stats failed ({e}); keeping the previous stats.")
+    del s, t, species
+    gc.collect()                            # hand the memory back before the next hour
     with _lock:
-        _cache.update(new)
+        _cache.update(body_gz=body_gz, count=count, at=time.time())
+        if stats_gz:
+            _cache["stats_gz"] = stats_gz
     _status["last_error"] = None
     _ready.set()
-    print(f"Loaded {new['count']:,} cleaned sightings from Supabase in {time.time() - began:.0f} s.")
+    print(f"Loaded {count:,} cleaned sightings from Supabase in {time.time() - began:.0f} s.")
+    if save:
+        try:
+            save_snapshot()
+        except Exception as e:
+            print(f"Couldn't save the snapshot to MongoDB ({e}).")
+    return True
 
 
 def _background_refresh():
+    load_snapshot()
     while True:
-        refresh_data()
-        time.sleep(CACHE_SECONDS if _ready.is_set() else 60)   # retry sooner if the first load failed
+        if REFRESH_ON_SERVER:
+            wait = CACHE_SECONDS - (time.time() - _cache["at"])
+            if wait > 0:
+                time.sleep(wait)                # saved copy is still fresh
+            if not refresh_data():
+                time.sleep(60)                  # try again soon
+        else:
+            time.sleep(300)                     # someone else refreshes the snapshot
+            load_snapshot()
 
 
 _bg_started = False
@@ -318,8 +377,8 @@ def start_background_refresh():
         threading.Thread(target=_background_refresh, daemon=True).start()
 
 
-def _wait_for_data(key: str):
-    """The saved copy; on a fresh start, waits (up to 2 minutes) for the first load."""
+def _wait_for_data(key: str) -> bytes:
+    """The saved (gzipped) copy; on a first-ever start, waits up to 90 s for the first load."""
     start_background_refresh()
     if not _ready.wait(timeout=90):
         waited = int(time.time() - _status["started"])
@@ -329,27 +388,27 @@ def _wait_for_data(key: str):
     with _lock:
         if _cache[key] is None:
             raise RuntimeError("Stats aren't available yet.")
-        return _cache[key], _cache[key + "_gz"]
+        return _cache[key]
 
 
 def points_json() -> str:
-    return _wait_for_data("body")[0]
+    return gzip.decompress(_wait_for_data("body_gz")).decode("utf-8")
 
 
 def stats_json() -> str:
-    return _wait_for_data("stats")[0]
+    return gzip.decompress(_wait_for_data("stats_gz")).decode("utf-8")
 
 
 def _json_response(key: str, mimetype: str, cache_control: str):
     try:
-        plain, packed = _wait_for_data(key)
+        packed = _wait_for_data(key)
     except Exception as e:
         return Response(json.dumps({"error": str(e)}), status=502, mimetype="application/json")
     headers = {"Cache-Control": cache_control, "Vary": "Accept-Encoding"}
     if "gzip" in request.headers.get("Accept-Encoding", ""):
         headers["Content-Encoding"] = "gzip"
         return Response(packed, mimetype=mimetype, headers=headers)
-    return Response(plain, mimetype=mimetype, headers=headers)
+    return Response(gzip.decompress(packed), mimetype=mimetype, headers=headers)   # rare: no gzip
 
 
 # ── Mapbox map-load counter in MongoDB (hard monthly cap) ────────────────────
@@ -466,7 +525,7 @@ def _no_store(resp):
 
 @app.get("/api/points.geojson")
 def points():
-    return _json_response("body", "application/geo+json", "public, max-age=600")
+    return _json_response("body_gz", "application/geo+json", "public, max-age=600")
 
 
 @app.post("/api/map-load")
@@ -504,7 +563,7 @@ def map_load_status():
 
 @app.get("/api/stats.json")
 def stats():
-    return _json_response("stats", "application/json", "public, max-age=600")
+    return _json_response("stats_gz", "application/json", "public, max-age=600")
 
 
 STATS_VIEWS = {"active-users", "sightings", "contributors"}
@@ -528,20 +587,26 @@ def frontend_files(path):
     return send_from_directory(FRONTEND_DIR, path)
 
 
-if "--export" not in sys.argv:
+if "--export" not in sys.argv and "--refresh-snapshot" not in sys.argv:
     start_background_refresh()
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Serve the whale map with cleaned Supabase data.")
     ap.add_argument("--export", metavar="FILE", help="write the cleaned GeoJSON to FILE and exit")
+    ap.add_argument("--refresh-snapshot", action="store_true",
+                    help="read Supabase, save the result to MongoDB for the server, and exit")
     ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)))
     args = ap.parse_args()
 
+    if args.refresh_snapshot:
+        ok = refresh_data(save=True)
+        print("Snapshot saved to MongoDB." if ok else "Snapshot not saved.")
+        sys.exit(0 if ok else 1)
     if args.export:
-        refresh_data()
+        refresh_data(save=False)
         with open(args.export, "w", encoding="utf-8") as f:
-            f.write(_cache["body"])
+            f.write(gzip.decompress(_cache["body_gz"]).decode("utf-8"))
         print(f"Wrote {_cache['count']:,} sightings to {args.export}")
     else:
         if not os.path.exists(os.path.join(FRONTEND_DIR, "webmap.html")):
