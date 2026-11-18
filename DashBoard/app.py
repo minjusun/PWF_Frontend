@@ -422,6 +422,34 @@ s_scope, t_scope = d.slice_data(s_reg, t, start, end, tracks_follow_sightings=fo
 s_hist, t_hist = d.slice_data(s_reg, t, hist_start, hist_end, tracks_follow_sightings=follow_r)
 s_hist_all = d.slice_data(s, t, hist_start, hist_end)[0]
 
+# Same region + contributor, but ignoring the Species filter. Used for "how many different species"
+# counts, which would otherwise just show 1 (or 2...) every month when species are filtered.
+s_nosp = s_all if who == "Everyone" else s_all[s_all["contributor"] == who]
+t_nosp = t_all if who == "Everyone" else t_all[t_all["contributor"] == who]
+s_nosp_reg = s_nosp if is_global else s_nosp[s_nosp["region"] == region_sel]
+s_hist_nosp, t_hist_nosp = d.slice_data(s_nosp_reg, t_nosp, hist_start, hist_end,
+                                        tracks_follow_sightings=not is_global)
+
+
+def scope_text(period=True, species="filter"):
+    """Short line saying what a chart is based on, e.g. 'Hawaii · Humpback whale · All years'.
+    period=True  -> uses the Period filter; False -> uses every year of data.
+    species      -> "filter" (header Species filter), "all" (ignores it), None (chart has its own picker)."""
+    bits = ["All regions" if is_global else short_name]
+    if species == "all":
+        bits.append("All species")
+    elif species == "filter":
+        if not sp_filter:
+            bits.append("All species")
+        elif len(sp_filter) <= 2:
+            bits.append(", ".join(sp_filter))
+        else:
+            bits.append(f"{len(sp_filter)} selected species")
+    if who != "Everyone":
+        bits.append(who)
+    bits.append(window if period else "All years")
+    return html.escape(" · ".join(bits))
+
 # ── Header: logo + one-line summary (replaces the old Global view box) ───────
 rc = region_counts.drop(R.OPEN_OCEAN, errors="ignore")
 esc = html.escape
@@ -516,13 +544,24 @@ c_activity, c_best = st.columns([5, 5])
 data_start, data_end = s_all["ts"].min(), now
 
 with c_activity:
-    with card("activity", "Activity over time"):
+    act_mode = ss.get("act_what") or "Trips & sightings"     # known before the card header is drawn
+    if act_mode == "Species":
+        act_sub = f"Different species seen · {scope_text(period=False, species='all')}"
+        if sp_filter:
+            act_sub += " (your Species filter is ignored here)"
+    else:
+        act_sub = f"Trips and sightings · {scope_text(period=False)}"
+        if sp_filter:
+            act_sub += " · only trips that saw the selected species"
+    with card("activity", "Activity over time", act_sub):
         c1, c2 = st.columns([3, 2])
         what = c1.segmented_control("Show", ["Trips & sightings", "Species"], default="Trips & sightings",
                                     key="act_what", label_visibility="collapsed") or "Trips & sightings"
         gran = c2.selectbox("Group by", ["Month", "Week", "Quarter"], key="act_gran",
                             label_visibility="collapsed")
-        ot = d.over_time(s_hist, t_hist, {"Week": "W", "Month": "M", "Quarter": "Q"}[gran])
+        freq = {"Week": "W", "Month": "M", "Quarter": "Q"}[gran]
+        ot = (d.over_time(s_hist_nosp, t_hist_nosp, freq) if what == "Species"
+              else d.over_time(s_hist, t_hist, freq))
         fig = go.Figure()
         if what == "Trips & sightings":
             fig.add_bar(x=ot["period"], y=ot["Trips"], name="Trips", marker_color=MIST)
@@ -540,7 +579,7 @@ with c_best:
     if sp_rank.empty:
         st.info("No sightings here yet. Pick another region or widen the filters.")
     else:
-        with card("season", "Best time to see"):
+        with card("season", "Best time to see", scope_text(period=False, species=None)):
             sel = st.selectbox("Species", sp_rank.index.tolist(), key="season_species",
                                label_visibility="collapsed")
             sd = s_hist[s_hist["species_name"] == sel]
@@ -568,7 +607,7 @@ if sp_rank.empty:
         st.info("No sightings here yet. Pick another region or widen the filters.")
 else:
     with c_year:
-        with card("curve", "One year vs other years", "Sightings per month"):
+        with card("curve", "One year vs other years", f"Sightings per month · {scope_text(period=False, species=None)}"):
             cc1, cc2 = st.columns([3, 2])
             sp_opts = sp_rank.index.tolist()
             if ss.get("curve_species") not in sp_opts:
@@ -591,7 +630,7 @@ else:
             st.plotly_chart(style(fig, h=172, legend=True, x="Month", y="Sightings"), config=PLOT_CFG, theme=None, key="season_vs")
 
 with c_group:
-    with card("group", "Typical group size", "Median animals per sighting"):
+    with card("group", "Typical group size", f"Median animals per sighting · {scope_text()}"):
         grp = (s_scope[s_scope["animals_total"] > 0].groupby("species_name")["animals_total"].median().dropna().sort_values().tail(8)
                .rename_axis("Species").reset_index(name="Median"))
         if grp.empty:
@@ -614,19 +653,21 @@ if ss.get("show_more"):
     c_hot, c_peak, c_calf = st.columns([3.2, 2.4, 2.4])
     with c_hot:
         if is_global:
-            with card("hot", "Busiest region by year"):
+            with card("hot", "Busiest region by year", scope_text(period=False)):
                 st.dataframe(d.busiest_region_by_year(s_hist), hide_index=True, height=249,
                              column_config={"Year": st.column_config.NumberColumn(format="%d"),
                                             "Share of year": None})
         else:
-            with card("hot", f"{short_name} vs. Global"):
+            with card("hot", f"{short_name} vs. Global", scope_text(period=False)):
                 st.dataframe(d.region_rank_by_year(s_hist_all, region_sel), hide_index=True, height=249,
                              column_config={"Year": st.column_config.NumberColumn(format="%d"),
                                             "Share of global": st.column_config.ProgressColumn(
                                                 format="percent", min_value=0, max_value=1)})
 
     with c_peak:
-        with card("shift", "Busiest month each year", None if sp_rank.empty else sel):
+        with card("shift", "Busiest month each year",
+                  scope_text(period=False, species=None) if sp_rank.empty
+                  else f"{html.escape(sel)} · {scope_text(period=False, species=None)}"):
             if sp_rank.empty:
                 st.caption("No sightings here yet.")
             else:
@@ -634,7 +675,7 @@ if ss.get("show_more"):
                              column_config={"Sightings that year": None})
 
     with c_calf:
-        with card("calf", "Calves by month", "Calves counted in a typical month"):
+        with card("calf", "Calves by month", f"Calves counted in a typical month · {scope_text(period=False, species=None)}"):
             calf_counts = s_hist.groupby("species_name")["animals_calf"].sum().sort_values(ascending=False)
             calf_counts = calf_counts[calf_counts > 0]
             if calf_counts.empty:
@@ -654,7 +695,7 @@ if ss.get("show_more"):
                 st.plotly_chart(style(fig, h=170, x="Month", y="Calves (typical month)"), config=PLOT_CFG, theme=None, key="calf_chart")
 
 # ── Disclaimer at the bottom of the page ─────────────────────────────────────
-st.markdown("<div class='disclaimer'>This presents opportunistic data collected by community scientists "
+st.markdown("<div class='disclaimer'>This dashboard presents opportunistic data collected by community scientists "
             "from the Whale &amp; Dolphin Tracker app.</div>", unsafe_allow_html=True)
 
 
@@ -664,7 +705,9 @@ Humphrey = {
     "kpi_users": f"{cur['users']:,} people logged trips or sightings {place} this period!",
     "kpi_animals": f"{cur['animals']:,} animals counted {place}!",
     "map": ("This map shows regions where sightings were collected on our Whale & Dolphin Tracker app."),
-    "activity": "Bars are trips, the line is sightings. Hover over any point to see the exact count.",
+    "activity": ("Each bar counts how many different species were seen. It always uses every species, "
+                 "even if you filtered some." if what == "Species" else
+                 "Bars are trips, the line is sightings. Hover over any point to see the exact count."),
     "hot": "Each row is one year and the place with the most sightings that year.",
     "shift": "This shows the busiest month for the species you picked, year by year.",
     "calf": "Calves are baby whales and dolphins! This shows when the most are spotted.",
