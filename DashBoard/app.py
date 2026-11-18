@@ -334,7 +334,8 @@ years = sorted(s_all["year"].unique(), reverse=True)
 window = h2.selectbox("Period", ["Last 12 months", *[str(y) for y in years], "All time"])
 sp_filter = h3.multiselect("Species", s_all["species_name"].value_counts().index.tolist(), placeholder="All species")
 who = h4.selectbox("Contributor", ["Everyone", *s_all["contributor"].value_counts().index.tolist()])
-st.markdown("<div class='disclaimer'> The data presented is based on citizen science contributions from Whale &amp Dolpin Tracker users and is not the result of a rigorous scientific study.</div>")
+st.markdown("<div class='disclaimer'>This presents opportunistic data collected by community scientists "
+            "from the Whale &amp; Dolphin Tracker app.</div>", unsafe_allow_html=True)
 
 if window == "Last 12 months":
     start, end = (now - pd.DateOffset(years=1)).normalize(), now
