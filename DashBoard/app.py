@@ -150,9 +150,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .st-key-more_btn button:hover {border-color:#1B7F8C; color:#1B7F8C;}
 .st-key-more_btn [data-testid="stIconMaterial"] {font-size:1.8rem;}
 /* "Species: ..." tag on the charts that follow the header Species filter */
-.sp-tag {display:inline-block; background:#E8F3F5; color:#0E4D64; border:1px solid #CFE3E8;
-         border-radius:999px; padding:3px 11px; font-size:0.78rem; line-height:1.3; margin:0 0 4px;}
-.sp-tag b {font-weight:600;}
+.sp-tag {color:#8AA0A8; font-size:0.74rem; line-height:1.4; margin:0 0 8px;}
+.sp-tag b {font-weight:500; color:#6B848D;}
 /* disclaimer at the bottom center of the page */
 .disclaimer {color:#C9DAE7; font-size:0.9rem; line-height:1.5; text-align:center;
              margin:40px auto 10px; max-width:900px; font-style:italic;}
@@ -435,23 +434,17 @@ s_hist_nosp, t_hist_nosp = d.slice_data(s_nosp_reg, t_nosp, hist_start, hist_end
                                         tracks_follow_sightings=not is_global)
 
 
-def scope_text(period=True, species="filter"):
-    """Short line saying what a chart is based on, e.g. 'Hawaii · Humpback whale · All years'.
-    period=True  -> uses the Period filter; False -> uses every year of data.
-    species      -> "filter" (header Species filter), "all" (ignores it), None (chart has its own picker)."""
-    bits = ["All regions" if is_global else short_name]
-    if species == "all":
-        bits.append("All species")
-    elif species == "filter":
-        if not sp_filter:
-            bits.append("All species")
-        elif len(sp_filter) <= 2:
-            bits.append(", ".join(sp_filter))
-        else:
-            bits.append(f"{len(sp_filter)} selected species")
+def scope_text(main, period=False):
+    """Short chart subtitle: the main text, plus only the filters that are actually narrowing it
+    (a picked region or contributor, and the Period for charts that use it). Species is shown
+    separately by the small "Species:" line, so it's left out here."""
+    bits = [main]
+    if not is_global:
+        bits.append(short_name)
     if who != "Everyone":
         bits.append(who)
-    bits.append(window if period else "All years")
+    if period:
+        bits.append(window)
     return html.escape(" · ".join(bits))
 
 # ── Header: logo + one-line summary (replaces the old Global view box) ───────
@@ -559,14 +552,11 @@ data_start, data_end = s_all["ts"].min(), now
 with c_activity:
     act_mode = ss.get("act_what") or "Trips & sightings"     # known before the card header is drawn
     if act_mode == "Species":
-        act_sub = (f"Number of different species seen each year, this year vs. other years · "
-                   f"{scope_text(period=False, species='all')}")
+        act_sub = scope_text("Species seen each year")
         if sp_filter:
-            act_sub += " (your Species filter is ignored here)"
+            act_sub += " (all species)"
     else:
-        act_sub = f"Trips and sightings · {scope_text(period=False)}"
-        if sp_filter:
-            act_sub += " · only trips that saw the selected species"
+        act_sub = scope_text("Trips and sightings per quarter")
     with card("activity", "Activity over time", act_sub):
         what = st.segmented_control("Show", ["Trips & sightings", "Species"], default="Trips & sightings",
                                     key="act_what", label_visibility="collapsed") or "Trips & sightings"
@@ -620,7 +610,7 @@ with c_best:
     if sp_rank.empty:
         st.info("No sightings here yet. Pick another region or widen the filters.")
     else:
-        with card("season", "Best time to see", scope_text(period=False)):
+        with card("season", "Best time to see", scope_text("Sightings in a typical month")):
             st.markdown(sp_tag, unsafe_allow_html=True)
             sd = s_hist                      # already limited to the header Species filter
             tm = d.typical_month(sd, data_start, data_end)
@@ -648,7 +638,7 @@ if sp_rank.empty:
 else:
     with c_year:
         with card("curve", "Sightings comparison",
-                  f"One year vs. the average of other years, per month · {scope_text(period=False)}"):
+                  scope_text("One year vs. other years")):
             st.markdown(sp_tag, unsafe_allow_html=True)
             sd_c = s_hist                    # already limited to the header Species filter
             yr_opts = sorted(sd_c["year"].unique().tolist(), reverse=True) or [now.year]
@@ -667,7 +657,7 @@ else:
             st.plotly_chart(style(fig, h=172, legend=True, x="Month", y="Sightings"), config=PLOT_CFG, theme=None, key="season_vs")
 
 with c_group:
-    with card("group", "Typical group size", f"Median animals per sighting · {scope_text()}"):
+    with card("group", "Typical group size", scope_text("Median animals per sighting", period=True)):
         grp = (s_scope[s_scope["animals_total"] > 0].groupby("species_name")["animals_total"].median().dropna().sort_values().tail(8)
                .rename_axis("Species").reset_index(name="Median"))
         if grp.empty:
@@ -690,19 +680,19 @@ if ss.get("show_more"):
     c_hot, c_peak, c_calf = st.columns([3.2, 2.4, 2.4])
     with c_hot:
         if is_global:
-            with card("hot", "Busiest region by year", scope_text(period=False)):
+            with card("hot", "Busiest region by year", scope_text("All years")):
                 st.dataframe(d.busiest_region_by_year(s_hist), hide_index=True, height=249,
                              column_config={"Year": st.column_config.NumberColumn(format="%d"),
                                             "Share of year": None})
         else:
-            with card("hot", f"{short_name} vs. Global", scope_text(period=False)):
+            with card("hot", f"{short_name} vs. Global", scope_text("All years")):
                 st.dataframe(d.region_rank_by_year(s_hist_all, region_sel), hide_index=True, height=249,
                              column_config={"Year": st.column_config.NumberColumn(format="%d"),
                                             "Share of global": st.column_config.ProgressColumn(
                                                 format="percent", min_value=0, max_value=1)})
 
     with c_peak:
-        with card("shift", "Busiest month each year", scope_text(period=False)):
+        with card("shift", "Busiest month each year", scope_text("All years")):
             st.markdown(sp_tag, unsafe_allow_html=True)
             if sp_rank.empty:
                 st.caption("No sightings here yet.")
@@ -711,7 +701,7 @@ if ss.get("show_more"):
                              column_config={"Sightings that year": None})
 
     with c_calf:
-        with card("calf", "Calves by month", f"Calves counted in a typical month · {scope_text(period=False)}"):
+        with card("calf", "Calves by month", scope_text("Calves in a typical month")):
             st.markdown(sp_tag, unsafe_allow_html=True)
             if s_hist["animals_calf"].sum() <= 0:
                 st.caption("No calves have been recorded here yet.")
