@@ -538,14 +538,20 @@ st.markdown("<div class='quote quote-on-blue quote-spaced'><p style='font-size: 
 # ── Row line 1: activity over time + best time to see ────────────────────────
 sp_rank = s_hist["species_name"].value_counts()
 # The species charts follow the header Species filter (no dropdown of their own).
-if not sp_filter:
+# Picking every species in the filter counts the same as picking none.
+all_species_picked = not sp_filter or set(sp_filter) >= set(s_all["species_name"].dropna().unique())
+if all_species_picked:
     sp_label, sp_plural = "All species", "Whales and dolphins"
+    sp_names = "All species"
 elif len(sp_filter) == 1:
     sp_label, sp_plural = sp_filter[0], d.plural(sp_filter[0])
+    sp_names = sp_filter[0]
 else:
     sp_label, sp_plural = f"{len(sp_filter)} selected species", "The selected species"
-sp_tag = (f"<div class='sp-tag'>Species: <b>{html.escape(', '.join(sp_filter))}</b></div>" if sp_filter
-          else "<div class='sp-tag'>Species: <b>All species</b></div>")
+    # long lists: name the first three, then "and N more"
+    sp_names = (", ".join(sp_filter) if len(sp_filter) <= 3
+                else f"{', '.join(sp_filter[:3])} and {len(sp_filter) - 3} more")
+sp_tag = f"<div class='sp-tag'>Species: <b>{html.escape(sp_names)}</b></div>"
 c_activity, c_best = st.columns([5, 5])
 data_start, data_end = s_all["ts"].min(), now
 
@@ -708,7 +714,7 @@ if ss.get("show_more"):
             else:
                 tc_ = d.typical_calves(s_hist, s_all["ts"].min(), now)
                 best = tc_.loc[tc_["Calves"].idxmax(), "Month"]
-                calf_who = "" if not sp_filter else f"{sp_label.lower()} "
+                calf_who = "" if all_species_picked else f"{sp_label.lower()} "
                 st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>Most {html.escape(calf_who)}"
                             f"calves are spotted in <b>{best}</b>.</div>", unsafe_allow_html=True)
                 fig = px.bar(tc_, x="Month", y="Calves", color_discrete_sequence=[SAND],
@@ -775,7 +781,7 @@ try:
                                f"with {int(p0['Sightings that month']):,} sightings that month.")
     if s_hist["animals_calf"].sum() > 0:
         tcv = d.typical_calves(s_hist, s_all["ts"].min(), now)
-        calf_who = "" if not sp_filter else f"{sp_label.lower()} "
+        calf_who = "" if all_species_picked else f"{sp_label.lower()} "
         Humphrey["calf"] = f"Most {calf_who}calves are spotted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}."
 except Exception:
     pass   # keep the general messages set above
