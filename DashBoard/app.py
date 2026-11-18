@@ -64,7 +64,7 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .st-key-header {background: linear-gradient(180deg, #1E5F8F 0%, #12446F 45%, #0B3358 100%);
                 width: 100vw !important; max-width: 100vw; box-sizing: border-box;
                 position: relative; left: 50%; margin-left: -50vw !important;
-                margin-top: -3.8rem; margin-bottom: 48px;
+                margin-top: -3.8rem; margin-bottom: 8px;
                 padding: 2.2rem 4.5rem 18px; border-radius: 0;
                 box-shadow: 0 6px 20px rgba(6,26,48,0.25);}
 .st-key-header [data-baseweb="select"] > div {background: rgba(255,255,255,0.12) !important;
@@ -149,6 +149,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .st-key-more_btn button {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; min-height:2.4rem;}
 .st-key-more_btn button:hover {border-color:#1B7F8C; color:#1B7F8C;}
 .st-key-more_btn [data-testid="stIconMaterial"] {font-size:1.8rem;}
+.disclaimer {color:#2F5470; font-size:0.72rem; line-height:1.4; text-align:center;
+             margin:0 auto 34px; max-width:900px; opacity:0.9;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -332,6 +334,7 @@ years = sorted(s_all["year"].unique(), reverse=True)
 window = h2.selectbox("Period", ["Last 12 months", *[str(y) for y in years], "All time"])
 sp_filter = h3.multiselect("Species", s_all["species_name"].value_counts().index.tolist(), placeholder="All species")
 who = h4.selectbox("Contributor", ["Everyone", *s_all["contributor"].value_counts().index.tolist()])
+st.markdown("<div class='disclaimer'> The data presented is based on citizen science contributions from Whale &amp Dolpin Tracker users and is not the result of a rigorous scientific study.</div>")
 
 if window == "Last 12 months":
     start, end = (now - pd.DateOffset(years=1)).normalize(), now
