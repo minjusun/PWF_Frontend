@@ -149,9 +149,9 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .st-key-more_btn button {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; min-height:2.4rem;}
 .st-key-more_btn button:hover {border-color:#1B7F8C; color:#1B7F8C;}
 .st-key-more_btn [data-testid="stIconMaterial"] {font-size:1.8rem;}
-/* small disclaimer under the logo, inside the dark header */
-.disclaimer {color:#A9C3D6; font-size:0.72rem; line-height:1.4; text-align:left;
-             margin:2px 0 0; font-style:italic;}
+/* disclaimer at the bottom center of the page */
+.disclaimer {color:#C9DAE7; font-size:0.9rem; line-height:1.5; text-align:center;
+             margin:40px auto 10px; max-width:900px; font-style:italic;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -331,8 +331,6 @@ header_box = st.container(key="header")
 h1, h2, h3, h4 = header_box.columns([5.6, 1.3, 2.2, 1.6], vertical_alignment="center")
 with h1:
     brand_slot = st.empty()
-    st.markdown("<div class='disclaimer'>This presents opportunistic data collected by community scientists "
-                "from the Whale &amp; Dolphin Tracker app.</div>", unsafe_allow_html=True)
 years = sorted(s_all["year"].unique(), reverse=True)
 window = h2.selectbox("Period", ["Last 12 months", *[str(y) for y in years], "All time"])
 sp_filter = h3.multiselect("Species", s_all["species_name"].value_counts().index.tolist(), placeholder="All species")
@@ -654,6 +652,10 @@ if ss.get("show_more"):
                 fig.update_traces(hovertemplate="%{x}: about %{y:.0f} calves in a typical year<extra></extra>")
                 fig.update_xaxes(tickangle=0, tickfont=dict(size=10, color="#0B2233"))
                 st.plotly_chart(style(fig, h=170, x="Month", y="Calves (typical month)"), config=PLOT_CFG, theme=None, key="calf_chart")
+
+# ── Disclaimer at the bottom of the page ─────────────────────────────────────
+st.markdown("<div class='disclaimer'>This presents opportunistic data collected by community scientists "
+            "from the Whale &amp; Dolphin Tracker app.</div>", unsafe_allow_html=True)
 
 
 # ── Humphrey's facts: what he says when you click each card ────────────────────
