@@ -149,6 +149,10 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .st-key-more_btn button {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; min-height:2.4rem;}
 .st-key-more_btn button:hover {border-color:#1B7F8C; color:#1B7F8C;}
 .st-key-more_btn [data-testid="stIconMaterial"] {font-size:1.8rem;}
+/* "Species: ..." tag on the charts that follow the header Species filter */
+.sp-tag {display:inline-block; background:#E8F3F5; color:#0E4D64; border:1px solid #CFE3E8;
+         border-radius:999px; padding:3px 11px; font-size:0.78rem; line-height:1.3; margin:0 0 4px;}
+.sp-tag b {font-weight:600;}
 /* disclaimer at the bottom center of the page */
 .disclaimer {color:#C9DAE7; font-size:0.9rem; line-height:1.5; text-align:center;
              margin:40px auto 10px; max-width:900px; font-style:italic;}
@@ -547,13 +551,16 @@ elif len(sp_filter) == 1:
     sp_label, sp_plural = sp_filter[0], d.plural(sp_filter[0])
 else:
     sp_label, sp_plural = f"{len(sp_filter)} selected species", "The selected species"
+sp_tag = (f"<div class='sp-tag'>Species: <b>{html.escape(', '.join(sp_filter))}</b></div>" if sp_filter
+          else "<div class='sp-tag'>Species: <b>All species</b></div>")
 c_activity, c_best = st.columns([5, 5])
 data_start, data_end = s_all["ts"].min(), now
 
 with c_activity:
     act_mode = ss.get("act_what") or "Trips & sightings"     # known before the card header is drawn
     if act_mode == "Species":
-        act_sub = f"Different species seen · {scope_text(period=False, species='all')}"
+        act_sub = (f"Number of different species seen each year, this year vs. other years · "
+                   f"{scope_text(period=False, species='all')}")
         if sp_filter:
             act_sub += " (your Species filter is ignored here)"
     else:
@@ -563,20 +570,50 @@ with c_activity:
     with card("activity", "Activity over time", act_sub):
         what = st.segmented_control("Show", ["Trips & sightings", "Species"], default="Trips & sightings",
                                     key="act_what", label_visibility="collapsed") or "Trips & sightings"
-        gran, freq = "Quarter", "Q"          # always grouped by quarter
-        ot = (d.over_time(s_hist_nosp, t_hist_nosp, freq) if what == "Species"
-              else d.over_time(s_hist, t_hist, freq))
         fig = go.Figure()
         if what == "Trips & sightings":
+            ot = d.over_time(s_hist, t_hist, "Q")          # always grouped by quarter
             fig.add_bar(x=ot["period"], y=ot["Trips"], name="Trips", marker_color=MIST)
             fig.add_scatter(x=ot["period"], y=ot["Sightings"], name="Sightings", mode="lines",
                             line=dict(color=DEEP, width=2))
+            fig.update_layout(barmode="overlay", hovermode="x unified")
+            x_title, y_title = "Quarter", "Trips & sightings"
+            species_note = None
         else:
-            fig.add_bar(x=ot["period"], y=ot["Species"], name=f"Different species seen each {gran.lower()}",
-                        marker_color=TEAL,
-                        hovertemplate="%{x|%b %Y}: %{y} different species<extra></extra>")
-        fig.update_layout(barmode="overlay", hovermode="x unified")
-        st.plotly_chart(style(fig, h=207, legend=True, x=gran, y="Trips & sightings" if what == "Trips & sightings" else "Different species"),
+            # Number of different species seen each year; this year highlighted vs. the other years' average
+            per_year = (s_hist_nosp.groupby("year")["species_name"].nunique()
+                        .rename("Species").reset_index().sort_values("year"))
+            per_year["year"] = per_year["year"].astype(int)
+            this_year = int(now.year)
+            others = per_year[per_year["year"] != this_year]
+            avg_other = others["Species"].mean() if len(others) else None
+            is_this = per_year["year"] == this_year
+            fig.add_bar(x=per_year.loc[~is_this, "year"].astype(str), y=per_year.loc[~is_this, "Species"],
+                        name="Other years", marker_color=MIST,
+                        hovertemplate="%{x}: %{y} different species<extra></extra>")
+            if is_this.any():
+                fig.add_bar(x=per_year.loc[is_this, "year"].astype(str), y=per_year.loc[is_this, "Species"],
+                            name=f"{this_year} (so far)", marker_color=DEEP,
+                            hovertemplate="%{x} so far: %{y} different species<extra></extra>")
+            if avg_other is not None:
+                fig.add_hline(y=avg_other, line=dict(color=TEAL, width=2, dash="dot"),
+                              annotation_text=f"Other years average: {avg_other:.0f}",
+                              annotation_position="top left",
+                              annotation_font=dict(size=10, color="#0B2233"))
+            fig.update_xaxes(type="category", categoryorder="array",
+                             categoryarray=per_year["year"].astype(str).tolist())
+            x_title, y_title = "Year", "Number of species seen"
+            species_note = None
+            if is_this.any() and avg_other is not None:
+                n_now = int(per_year.loc[is_this, "Species"].iloc[0])
+                diff = n_now - avg_other
+                trend = ("more than" if diff >= 0.5 else "fewer than" if diff <= -0.5 else "about the same as")
+                species_note = (f"<b>{n_now}</b> different species seen in {this_year} so far, "
+                                f"{trend} the average of <b>{avg_other:.0f}</b> in other years.")
+        if species_note:
+            st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>{species_note}</div>",
+                        unsafe_allow_html=True)
+        st.plotly_chart(style(fig, h=207 if not species_note else 185, legend=True, x=x_title, y=y_title),
                         config=PLOT_CFG, theme=None, key="activity_chart")
 
 with c_best:
@@ -584,6 +621,7 @@ with c_best:
         st.info("No sightings here yet. Pick another region or widen the filters.")
     else:
         with card("season", "Best time to see", scope_text(period=False)):
+            st.markdown(sp_tag, unsafe_allow_html=True)
             sd = s_hist                      # already limited to the header Species filter
             tm = d.typical_month(sd, data_start, data_end)
             top3 = tm.nlargest(3, "Average")
@@ -609,7 +647,9 @@ if sp_rank.empty:
         st.info("No sightings here yet. Pick another region or widen the filters.")
 else:
     with c_year:
-        with card("curve", "One year vs other years", f"Sightings per month · {scope_text(period=False)}"):
+        with card("curve", "Sightings comparison",
+                  f"One year vs. the average of other years, per month · {scope_text(period=False)}"):
+            st.markdown(sp_tag, unsafe_allow_html=True)
             sd_c = s_hist                    # already limited to the header Species filter
             yr_opts = sorted(sd_c["year"].unique().tolist(), reverse=True) or [now.year]
             if ss.get("curve_year") not in yr_opts:
@@ -663,6 +703,7 @@ if ss.get("show_more"):
 
     with c_peak:
         with card("shift", "Busiest month each year", scope_text(period=False)):
+            st.markdown(sp_tag, unsafe_allow_html=True)
             if sp_rank.empty:
                 st.caption("No sightings here yet.")
             else:
@@ -671,6 +712,7 @@ if ss.get("show_more"):
 
     with c_calf:
         with card("calf", "Calves by month", f"Calves counted in a typical month · {scope_text(period=False)}"):
+            st.markdown(sp_tag, unsafe_allow_html=True)
             if s_hist["animals_calf"].sum() <= 0:
                 st.caption("No calves have been recorded here yet.")
             else:
@@ -696,8 +738,8 @@ Humphrey = {
     "kpi_users": f"{cur['users']:,} people logged trips or sightings {place} this period!",
     "kpi_animals": f"{cur['animals']:,} animals counted {place}!",
     "map": ("This map shows regions where sightings were collected on our Whale & Dolphin Tracker app."),
-    "activity": ("Each bar counts how many different species were seen. It always uses every species, "
-                 "even if you filtered some." if what == "Species" else
+    "activity": ("Each bar is how many different species were seen that year. The dark bar is this year "
+                 "so far, and the dotted line is the average of the other years." if what == "Species" else
                  "Bars are trips, the line is sightings. Hover over any point to see the exact count."),
     "hot": "Each row is one year and the place with the most sightings that year.",
     "shift": "This shows the busiest month for the species you picked, year by year.",
