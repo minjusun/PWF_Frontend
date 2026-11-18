@@ -540,6 +540,13 @@ st.markdown("<div class='quote quote-on-blue quote-spaced'><p style='font-size: 
 
 # ── Row line 1: activity over time + best time to see ────────────────────────
 sp_rank = s_hist["species_name"].value_counts()
+# The species charts follow the header Species filter (no dropdown of their own).
+if not sp_filter:
+    sp_label, sp_plural = "All species", "Whales and dolphins"
+elif len(sp_filter) == 1:
+    sp_label, sp_plural = sp_filter[0], d.plural(sp_filter[0])
+else:
+    sp_label, sp_plural = f"{len(sp_filter)} selected species", "The selected species"
 c_activity, c_best = st.columns([5, 5])
 data_start, data_end = s_all["ts"].min(), now
 
@@ -554,12 +561,9 @@ with c_activity:
         if sp_filter:
             act_sub += " · only trips that saw the selected species"
     with card("activity", "Activity over time", act_sub):
-        c1, c2 = st.columns([3, 2])
-        what = c1.segmented_control("Show", ["Trips & sightings", "Species"], default="Trips & sightings",
+        what = st.segmented_control("Show", ["Trips & sightings", "Species"], default="Trips & sightings",
                                     key="act_what", label_visibility="collapsed") or "Trips & sightings"
-        gran = c2.selectbox("Group by", ["Month", "Week", "Quarter"], key="act_gran",
-                            label_visibility="collapsed")
-        freq = {"Week": "W", "Month": "M", "Quarter": "Q"}[gran]
+        gran, freq = "Quarter", "Q"          # always grouped by quarter
         ot = (d.over_time(s_hist_nosp, t_hist_nosp, freq) if what == "Species"
               else d.over_time(s_hist, t_hist, freq))
         fig = go.Figure()
@@ -579,10 +583,8 @@ with c_best:
     if sp_rank.empty:
         st.info("No sightings here yet. Pick another region or widen the filters.")
     else:
-        with card("season", "Best time to see", scope_text(period=False, species=None)):
-            sel = st.selectbox("Species", sp_rank.index.tolist(), key="season_species",
-                               label_visibility="collapsed")
-            sd = s_hist[s_hist["species_name"] == sel]
+        with card("season", "Best time to see", scope_text(period=False)):
+            sd = s_hist                      # already limited to the header Species filter
             tm = d.typical_month(sd, data_start, data_end)
             top3 = tm.nlargest(3, "Average")
             top3 = top3[top3["Average"] > 0]
@@ -590,7 +592,7 @@ with c_best:
                 months_txt = ", ".join(top3.sort_values("month")["Month"].tolist()[:-1])
                 months_txt = (f"{months_txt} and {top3.sort_values('month')['Month'].iloc[-1]}"
                               if len(top3) > 1 else top3["Month"].iloc[0])
-                st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>{html.escape(d.plural(sel))} "
+                st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>{html.escape(sp_plural)} "
                             f"are seen most in <b>{months_txt}</b>.</div>", unsafe_allow_html=True)
             tm["colour"] = np.where(tm["month"].isin(top3["month"]), "Best months", "Other months")
             fig = px.bar(tm, x="Month", y="Average", color="colour",
@@ -607,17 +609,12 @@ if sp_rank.empty:
         st.info("No sightings here yet. Pick another region or widen the filters.")
 else:
     with c_year:
-        with card("curve", "One year vs other years", f"Sightings per month · {scope_text(period=False, species=None)}"):
-            cc1, cc2 = st.columns([3, 2])
-            sp_opts = sp_rank.index.tolist()
-            if ss.get("curve_species") not in sp_opts:
-                ss["curve_species"] = sel                     # start on the Best time to see species
-            curve_sel = cc1.selectbox("Species", sp_opts, key="curve_species", label_visibility="collapsed")
-            sd_c = s_hist[s_hist["species_name"] == curve_sel]
+        with card("curve", "One year vs other years", f"Sightings per month · {scope_text(period=False)}"):
+            sd_c = s_hist                    # already limited to the header Species filter
             yr_opts = sorted(sd_c["year"].unique().tolist(), reverse=True) or [now.year]
             if ss.get("curve_year") not in yr_opts:
                 ss["curve_year"] = yr_opts[0]                  # newest year with sightings
-            curve_year = cc2.selectbox("Year", yr_opts, key="curve_year", label_visibility="collapsed")
+            curve_year = st.selectbox("Year", yr_opts, key="curve_year", label_visibility="collapsed")
             ty = d.year_vs_others(sd_c, data_start, now, curve_year)
             fig = go.Figure()
             fig.add_scatter(x=ty["Month"], y=ty["Other years (average)"], name="Other years (average)", mode="lines",
@@ -665,9 +662,7 @@ if ss.get("show_more"):
                                                 format="percent", min_value=0, max_value=1)})
 
     with c_peak:
-        with card("shift", "Busiest month each year",
-                  scope_text(period=False, species=None) if sp_rank.empty
-                  else f"{html.escape(sel)} · {scope_text(period=False, species=None)}"):
+        with card("shift", "Busiest month each year", scope_text(period=False)):
             if sp_rank.empty:
                 st.caption("No sightings here yet.")
             else:
@@ -675,18 +670,14 @@ if ss.get("show_more"):
                              column_config={"Sightings that year": None})
 
     with c_calf:
-        with card("calf", "Calves by month", f"Calves counted in a typical month · {scope_text(period=False, species=None)}"):
-            calf_counts = s_hist.groupby("species_name")["animals_calf"].sum().sort_values(ascending=False)
-            calf_counts = calf_counts[calf_counts > 0]
-            if calf_counts.empty:
+        with card("calf", "Calves by month", f"Calves counted in a typical month · {scope_text(period=False)}"):
+            if s_hist["animals_calf"].sum() <= 0:
                 st.caption("No calves have been recorded here yet.")
             else:
-                calf_sp = st.selectbox("Species", calf_counts.index.tolist(), key="calf_species",
-                                       label_visibility="collapsed",
-                                       help="Only species with calves recorded are listed.")
-                tc_ = d.typical_calves(s_hist[s_hist["species_name"] == calf_sp], s_all["ts"].min(), now)
+                tc_ = d.typical_calves(s_hist, s_all["ts"].min(), now)
                 best = tc_.loc[tc_["Calves"].idxmax(), "Month"]
-                st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>Most {html.escape(calf_sp.lower())} "
+                calf_who = "" if not sp_filter else f"{sp_label.lower()} "
+                st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>Most {html.escape(calf_who)}"
                             f"calves are spotted in <b>{best}</b>.</div>", unsafe_allow_html=True)
                 fig = px.bar(tc_, x="Month", y="Calves", color_discrete_sequence=[SAND],
                              category_orders={"Month": d.MONTHS})
@@ -695,7 +686,7 @@ if ss.get("show_more"):
                 st.plotly_chart(style(fig, h=170, x="Month", y="Calves (typical month)"), config=PLOT_CFG, theme=None, key="calf_chart")
 
 # ── Disclaimer at the bottom of the page ─────────────────────────────────────
-st.markdown("<div class='disclaimer'>This dashboard presents opportunistic data collected by community scientists "
+st.markdown("<div class='disclaimer'>This presents opportunistic data collected by community scientists "
             "from the Whale &amp; Dolphin Tracker app.</div>", unsafe_allow_html=True)
 
 
@@ -724,7 +715,7 @@ else:
     Humphrey["species_list"] = f"No species spotted {place} yet for this period."
 if not sp_rank.empty:
     best_txt = f" They show up most in {months_txt}." if len(top3) else ""
-    Humphrey["season"] = f"Want to see {d.plural(sel).lower()}?{best_txt}"
+    Humphrey["season"] = f"Want to see {sp_plural.lower()}?{best_txt}"
     Humphrey["curve"] = (f"The dark line is {ss.get('curve_year', now.year)}, the dotted line is the average of "
                        f"all other years. Above the dots means a busier month than usual!")
 if not grp.empty:
@@ -748,14 +739,12 @@ try:
         pk = d.peak_month_by_year(sd, data_start, data_end)
         if len(pk):
             p0 = pk.iloc[0]
-            Humphrey["shift"] = (f"In {str(p0['Year']).split(' ')[0]}, {d.plural(sel).lower()} were busiest in {p0['Busiest month']}, "
+            Humphrey["shift"] = (f"In {str(p0['Year']).split(' ')[0]}, {sp_plural.lower()} were busiest in {p0['Busiest month']}, "
                                f"with {int(p0['Sightings that month']):,} sightings that month.")
-    cc = s_hist.groupby("species_name")["animals_calf"].sum()
-    cc = cc[cc > 0]
-    if len(cc):
-        csp = ss.get("calf_species") if ss.get("calf_species") in cc.index else cc.idxmax()
-        tcv = d.typical_calves(s_hist[s_hist["species_name"] == csp], s_all["ts"].min(), now)
-        Humphrey["calf"] = (f"Most {csp.lower()} calves are spotted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}. ")
+    if s_hist["animals_calf"].sum() > 0:
+        tcv = d.typical_calves(s_hist, s_all["ts"].min(), now)
+        calf_who = "" if not sp_filter else f"{sp_label.lower()} "
+        Humphrey["calf"] = f"Most {calf_who}calves are spotted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}."
 except Exception:
     pass   # keep the general messages set above
 
