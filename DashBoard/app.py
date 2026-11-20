@@ -209,13 +209,13 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 """, unsafe_allow_html=True)
 
 
-ABOUT_TEXT = ("Whale and Dolphin Tracker originated from the realization that tour operators often spend more "
+ABOUT_TEXT = ("Whale & Dolphin Tracker originated from the realization that tour operators often spend more "
               "time at sea than researchers do. In the 1990s, we began data collection using paper datasheets and "
               "trained captains who recorded all their daily sightings. This then evolved to a mobile application "
               "allowing members of the public from all over the world to participate in citizen science by "
               "recording sightings of marine mammals. Contributors are now able to use their mobile phone to "
               "record the GPS location of the animals, group size, observed behaviors, as well as upload any "
-              "photos they may have taken! This dashboard presents data from Whale and Dolphin Tracker.")
+              "photos they may have taken! This dashboard presents data from Whale & Dolphin Tracker.")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -288,7 +288,7 @@ def wdt_logo_html():
         if os.path.exists(path):
             with open(path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
-            return f"<img class='brand-logo-right' src='data:image/png;base64,{b64}' alt='Whale and Dolphin Tracker'>"
+            return f"<img class='brand-logo-right' src='data:image/png;base64,{b64}' alt='Whale &amp; Dolphin Tracker'>"
     return ""
 
 
@@ -699,7 +699,7 @@ with kpi_row:
             st.plotly_chart(sparkline(ms["animals"], h=135, axes=True, x="Month", y="Animals"),
                             config=PLOT_CFG, theme=None, key="spark_animals")
     with k_quote:   # QUOTE 1
-        st.markdown("<div class='quote quote-on-blue quote-spaced quote-path'><p style='font-size: 28px;'><i>Make Your Trips Count <br> with Whale and Dolphin Tracker</i></p></div>",
+        st.markdown("<div class='quote quote-on-blue quote-spaced quote-path'><p style='font-size: 28px;'><i>Make Your Trips Count <br> with Whale &amp; Dolphin Tracker</i></p></div>",
             unsafe_allow_html=True)
 
 
@@ -960,7 +960,7 @@ Humphrey["contrib"] = (f"These boats logged the most sightings this past year. {
                        f"{int(tb.iloc[0]):,} sightings!" if len(tb)
                        else "No boats have logged sightings this past year yet.")
 if len(sp_tab):
-    Humphrey["species_list"] = (f"These are the 5 most-spotted species {place} in the Whale and Dolphin Tracker app. "
+    Humphrey["species_list"] = (f"These are the 5 most-spotted species {place} in the Whale & Dolphin Tracker app. "
                               f"The most common is the {sp_tab.iloc[0]['Species'].lower()}.")
 else:
     Humphrey["species_list"] = f"No species spotted {place} yet for this period."
