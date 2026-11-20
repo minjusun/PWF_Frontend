@@ -90,16 +90,30 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .st-key-header [data-baseweb="select"] div, .st-key-header [data-baseweb="select"] input,
 .st-key-header [data-baseweb="select"] svg {color: #FFFFFF !important; fill: #FFFFFF !important;}
 [data-testid="stToolbar"] button, [data-testid="stToolbar"] a, [data-testid="stToolbar"] span {color: #E6EEF3 !important;}
-.brand-logo-right {height:42px; width:auto; display:block; flex-shrink:0;
-                   position:relative; top:3px; left:0px;}
+.brand-logo {height:42px; width:auto; display:block;}
 .brand-divider {width:1px; height:30px; background:rgba(255,255,255,0.35);}
 .brand-logo, .brand-divider {flex-shrink:0;}
 /* Whale & Dolphin Tracker logo, right next to the Pacific Whale Foundation logo */
-.brand-logo-right {height:42px; width:auto; display:block; flex-shrink:0;}
+.brand-logo-right {height:42px; width:auto; display:block; flex-shrink:0;
+                   position:relative; top:3px; left:0px;}
 .summary {color:#C9DAE7; font-size:0.92rem; line-height:1.4; white-space:nowrap; overflow:hidden;
           text-overflow:ellipsis; min-width:0;}
 .summary b {color:#FFFFFF; font-weight:700;}
 .summary-dot {margin:0 9px; color:rgba(255,255,255,0.4);}
+/* "About" on the right end of the header line; hover (or tab to it) to see the story */
+.st-key-header [data-testid="stElementContainer"], .st-key-header [data-testid="stMarkdown"],
+.st-key-header [data-testid="stMarkdownContainer"] {overflow:visible !important;}
+.about {position:relative; margin-left:auto; flex-shrink:0; padding:4px 2px; cursor:default;
+        color:#C9DAE7; font-size:0.92rem; font-weight:600; letter-spacing:0.02em; outline:none;}
+.about:hover, .about:focus-within {color:#FFFFFF;}
+.about-pop {position:absolute; right:0; top:calc(100% + 12px); width:380px; z-index:1000;
+            background:#FFFFFF; color:#12303B; font-size:0.84rem; font-weight:400; line-height:1.55;
+            letter-spacing:0; padding:14px 16px; border-radius:10px; border:1px solid #DCE7EA;
+            box-shadow:0 10px 30px rgba(6,26,48,0.28); white-space:normal;
+            opacity:0; visibility:hidden; transform:translateY(-4px);
+            transition:opacity .2s, transform .2s, visibility .2s;}
+.about-pop b {display:block; color:#0E4D64; font-size:0.92rem; margin-bottom:6px;}
+.about:hover .about-pop, .about:focus-within .about-pop {opacity:1; visibility:visible; transform:translateY(0);}
 .st-key-header [data-testid="stWidgetLabel"] p {color: #C9DAE7 !important;}
 
 .quote {font-size:2.4rem; font-weight:800; color:#0B2540; text-align:center; letter-spacing:0.02em;
@@ -190,6 +204,15 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
              margin:40px auto 10px; max-width:900px; font-style:italic;}
 </style>
 """, unsafe_allow_html=True)
+
+
+ABOUT_TEXT = ("Whale and Dolphin Tracker originated from the realization that tour operators often spend more "
+              "time at sea than researchers do. In the 1990s, we began data collection using paper datasheets and "
+              "trained captains who recorded all their daily sightings. This then evolved to a mobile application "
+              "allowing members of the public from all over the world to participate in citizen science by "
+              "recording sightings of marine mammals. Contributors are now able to use their mobile phone to "
+              "record the GPS location of the animals, group size, observed behaviors, as well as upload any "
+              "photos they may have taken! This dashboard presents data from Whale and Dolphin Tracker.")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -647,7 +670,10 @@ summary = "<span class='summary-dot'>·</span>".join(parts)
 tooltip = esc(re.sub(r"<[^>]+>", "", " · ".join(parts)))   # plain text shown on hover
 brand_slot.markdown(f"<div class='brand'>{logo_html(divider=False)}{wdt_logo_html()}"
                     f"<span class='brand-divider'></span><div class='summary' title='{tooltip}'>"
-                    f"{summary}</div></div>", unsafe_allow_html=True)
+                    f"{summary}</div>"
+                    f"<div class='about' tabindex='0'>About<div class='about-pop'>"
+                    f"<b>About Whale &amp; Dolphin Tracker</b>{html.escape(ABOUT_TEXT)}</div></div>"
+                    f"</div>", unsafe_allow_html=True)
 
 
 # ── KPI strip ────────────────────────────────────────────────────────────────
