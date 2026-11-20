@@ -202,6 +202,17 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .ctab td {padding:7px 8px; border-bottom:1px solid #E3E9EC;}
 .ctab tr:last-child td {border-bottom:none;}
 .ctab th.num, .ctab td.num {text-align:right;}
+/* "Download the app" section at the bottom (sits on the page's own dark blue) */
+.dl {margin:70px 0 20px; color:#FFFFFF;}
+.dl-title {text-align:center; font-size:3.4rem; font-weight:800; line-height:1.1; letter-spacing:0.02em;
+           margin:0 0 46px;}
+.dl-title .outline {color:transparent; -webkit-text-stroke:1.5px #FFFFFF; font-weight:500;}
+.dl-row {display:flex; align-items:center; justify-content:center; gap:90px; flex-wrap:wrap;}
+.dl-logo {width:200px; height:auto; display:block; flex-shrink:0;}
+.dl-text {font-size:1.15rem; line-height:1.5; margin:0 0 20px; color:#FFFFFF;}
+.dl-badges {display:flex; gap:14px; align-items:center; flex-wrap:wrap;}
+.dl-badges a {display:block; line-height:0;}
+.dl-badges img {height:48px; width:auto; display:block;}
 /* disclaimer at the bottom center of the page */
 .disclaimer {color:#C9DAE7; font-size:0.9rem; line-height:1.5; text-align:center;
              margin:40px auto 10px; max-width:900px; font-style:italic;}
@@ -280,7 +291,7 @@ def logo_html(divider=True):
     return ""
 
 
-def wdt_logo_html():
+def wdt_logo_html(cls="brand-logo-right"):
     """Whale & Dolphin Tracker logo from WDTlogo.png next to this file; empty if missing."""
     here = os.path.dirname(os.path.abspath(__file__))
     for name in ("WDTlogo.png", "WDTLogo.png", "wdtlogo.png", "WDTlogo.PNG"):
@@ -288,8 +299,43 @@ def wdt_logo_html():
         if os.path.exists(path):
             with open(path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
-            return f"<img class='brand-logo-right' src='data:image/png;base64,{b64}' alt='Whale &amp; Dolphin Tracker'>"
+            return f"<img class='{cls}' src='data:image/png;base64,{b64}' alt='Whale &amp; Dolphin Tracker'>"
     return ""
+
+
+GOOGLE_PLAY_URL = "https://play.google.com/store/apps/details?id=org.pacificwhale.tracker"
+APP_STORE_URL = ("https://itunes.apple.com/us/app/whale-and-dolphin-tracker/id1336754335"
+                 "?mt=8&mc_cid=5dfd7f6e24&mc_eid=66257b110c")
+
+
+def badge_src(local_names, fallback_url):
+    """A store badge from a file next to app.py if there is one, else the store's official hosted badge."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for name in local_names:
+        path = os.path.join(here, name)
+        if os.path.exists(path):
+            mime = "image/svg+xml" if name.lower().endswith(".svg") else "image/png"
+            with open(path, "rb") as f:
+                return f"data:{mime};base64,{base64.b64encode(f.read()).decode()}"
+    return fallback_url
+
+
+def download_section_html():
+    gp = badge_src(("googleplay.png", "googleplay.svg"),
+                   "https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png")
+    ap = badge_src(("appstore.png", "appstore.svg"),
+                   "https://tools.applemarketingtools.com/api/badges/download-on-the-app-store/black/en-us")
+    return (
+        "<div class='dl'>"
+        "<div class='dl-title'>DOWNLOAD <span class='outline'>THE APP</span></div>"
+        f"<div class='dl-row'>{wdt_logo_html('dl-logo')}<div>"
+        "<div class='dl-text'>Download the app from the App Store or from Google Play below</div>"
+        "<div class='dl-badges'>"
+        f"<a href='{html.escape(GOOGLE_PLAY_URL)}' target='_blank' rel='noopener'>"
+        f"<img src='{gp}' alt='Get it on Google Play' style='height:70px;margin:-11px -10px'></a>"
+        f"<a href='{html.escape(APP_STORE_URL)}' target='_blank' rel='noopener'>"
+        f"<img src='{ap}' alt='Download on the App Store'></a>"
+        "</div></div></div></div>")
 
 
 def whale_gif_html():
@@ -937,6 +983,9 @@ if ss.get("show_more"):
                 fig.update_traces(hovertemplate="%{x}: about %{y:.0f} calves in a typical year<extra></extra>")
                 fig.update_xaxes(tickangle=0, tickfont=dict(size=10, color="#0B2233"))
                 st.plotly_chart(style(fig, h=220, x="Month", y="Calves (typical month)"), config=PLOT_CFG, theme=None, key="calf_chart")
+
+# ── Download the app (bottom of the page) ────────────────────────────────────
+st.markdown(download_section_html(), unsafe_allow_html=True)
 
 # ── Disclaimer at the bottom of the page ─────────────────────────────────────
 st.markdown("<div class='disclaimer'>This presents opportunistic data collected by community scientists "
