@@ -94,7 +94,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .brand-divider {width:1px; height:30px; background:rgba(255,255,255,0.35);}
 .brand-logo, .brand-divider {flex-shrink:0;}
 /* Whale & Dolphin Tracker logo, right next to the Pacific Whale Foundation logo */
-.brand-logo-right {height:42px; width:auto; display:block; flex-shrink:0;}
+.brand-logo-right {height:42px; width:auto; display:block; flex-shrink:0;
+                   position:relative; top:3px; left:0px;}
 .summary {color:#C9DAE7; font-size:0.92rem; line-height:1.4; white-space:nowrap; overflow:hidden;
           text-overflow:ellipsis; min-width:0;}
 .summary b {color:#FFFFFF; font-weight:700;}
