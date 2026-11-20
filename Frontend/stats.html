@@ -51,11 +51,21 @@
   .card-title { font-size: 0.92rem; font-weight: 600; color: var(--title); padding: 0 0 10px; }
   .metric-label { font-size: 0.76rem; color: var(--label); margin: 0 0 4px; }
   .metric-value { font-size: 1.4rem; color: var(--value); line-height: 1.2; }
+  .delta-slot { display: flex; }
   .metric-delta { align-self: flex-start; display: inline-flex; gap: 4px; margin-top: 6px; padding: 1px 7px;
                   border-radius: 999px; font-size: 0.72rem; }
   .metric-delta.up { color: rgb(9,171,59); background: rgba(9,171,59,0.1); }
   .metric-delta.down { color: rgb(255,43,43); background: rgba(255,43,43,0.1); }
   .chart { width: 100%; height: 135px; margin-top: 8px; }
+  /* Location picker (Animals counted): looks like the dashboard's dropdowns */
+  .kpi-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .loc { font: inherit; font-size: 0.82rem; color: var(--title); max-width: 60%; min-width: 0;
+         padding: 5px 28px 5px 10px; border-radius: 8px; border: 1px solid rgba(11,37,64,0.14);
+         background: rgba(42,120,174,0.12) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%235B7680'/></svg>") no-repeat right 10px center;
+         appearance: none; -webkit-appearance: none; cursor: pointer; text-overflow: ellipsis; }
+  .loc:hover { background-color: rgba(42,120,174,0.2); }
+  .loc:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  :root[data-theme="dark"] .loc { border-color: var(--border); background-color: rgba(165,221,247,0.08); }
 
   /* Top 5 contributors: same as .ctab in app.py */
   .ctab { width: 100%; border-collapse: collapse; font-size: 0.86rem; color: var(--title); }
@@ -118,7 +128,7 @@
     const tick = { size: 11, color: css('--tick') };
     const title = t => ({ text: t, font: { size: 11, color: css('--tick') }, standoff: 12 });
     const embed = document.body.classList.contains('embed');
-    Plotly.newPlot(el, [{
+    Plotly.react(el, [{
       x: monthly.map(p => p.month), y: monthly.map(p => p.value),
       type: 'scatter', mode: 'lines', fill: 'tozeroy',
       line: { color: css('--teal'), width: 2 }, fillcolor: css('--fill'),
@@ -136,14 +146,32 @@
     }, { displayModeBar: false, responsive: true });
   }
 
-  function renderKpi(id, label, block, yTitle) {
-    const d = block.delta;
+  function renderKpi(id, label, block, yTitle, locations) {
+    const picker = locations && locations.regions && locations.regions.length
+      ? `<select class="loc" aria-label="Location"><option value="">Whole world</option>` +
+        locations.regions.map((r, i) => `<option value="${i}">${esc(r.name)}</option>`).join('') + '</select>'
+      : '';
     const card = setBody(id,
-      `<div class="metric-label">${esc(label)}</div>` +
-      `<div class="metric-value">${fmt(block.value)}</div>` +
-      (d ? `<div class="metric-delta ${d.up ? 'up' : 'down'}">${d.up ? '↑' : '↓'} ${esc(d.text)}</div>` : '') +
+      `<div class="kpi-top"><div class="metric-label">${esc(label)}</div>${picker}</div>` +
+      `<div class="metric-value"></div><div class="delta-slot"></div>` +
       `<div class="chart" role="img" aria-label="${esc(label)} per month"></div>`);
-    if (card) drawSparkline(card.querySelector('.chart'), block.monthly || [], yTitle);
+    if (!card) return;
+
+    function show(b) {
+      card.querySelector('.metric-value').textContent = fmt(b.value);
+      const d = b.delta;
+      card.querySelector('.delta-slot').innerHTML = d
+        ? `<div class="metric-delta ${d.up ? 'up' : 'down'}">${d.up ? '↑' : '↓'} ${esc(d.text)}</div>` : '';
+      drawSparkline(card.querySelector('.chart'), b.monthly || [], yTitle);
+    }
+    show(block);
+    const sel = card.querySelector('.loc');
+    if (sel) sel.addEventListener('change', () => {
+      if (sel.value === '') { show(block); return; }
+      const r = locations.regions[Number(sel.value)];
+      show({ value: r.value, delta: r.delta,
+             monthly: locations.months.map((m, i) => ({ month: m, value: r.monthly[i] || 0 })) });
+    });
   }
 
   function renderContributors(rows) {
@@ -152,7 +180,7 @@
       : '<tr><td colspan="3">No sightings in the past year.</td></tr>';
     setBody('contributors',
       '<div class="card-title">Top 5 Contributors (Past Year)</div>' +
-      '<table class="ctab"><thead><tr><th class="rk">Rank</th><th>Boat</th><th class="num">Sightings</th></tr></thead>' +
+      '<table class="ctab"><thead><tr><th class="rk">Rank</th><th>Boat name</th><th class="num">Sightings</th></tr></thead>' +
       `<tbody>${body}</tbody></table>`);
   }
 
@@ -179,7 +207,7 @@
     const dash = data && data.dashboard;
     if (!dash) { showMessage('These charts need a newer data snapshot. Run: python map_api.py --refresh-snapshot'); return; }
     renderKpi('active-users', 'Active users', dash.active_users, 'Users');
-    renderKpi('sightings', 'Animals counted', dash.animals, 'Animals');
+    renderKpi('sightings', 'Animals counted', dash.animals, 'Animals', dash.animals_by_region);
     renderContributors(dash.contributors || []);
     if (data.updated) {
       document.getElementById('updated').textContent = 'Last updated ' +
