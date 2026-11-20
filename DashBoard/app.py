@@ -152,6 +152,13 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 /* "Species: ..." tag on the charts that follow the header Species filter */
 .sp-tag {color:#8AA0A8; font-size:0.74rem; line-height:1.4; margin:0 0 8px;}
 .sp-tag b {font-weight:500; color:#6B848D;}
+/* Start screen: pick species, time range and location before the dashboard appears */
+.st-key-start_box {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:14px; padding:26px 28px 22px;
+                   margin-top:30px; box-shadow:0 10px 30px rgba(6,26,48,0.18);}
+.st-key-start_box [data-testid="stVerticalBlock"] {gap:0.8rem;}
+.start-title {font-size:1.3rem; font-weight:700; color:#0E4D64; margin:0 0 4px;}
+.start-sub {font-size:0.85rem; color:#5B7680; line-height:1.45; margin:0 0 6px;}
+.st-key-start_box [data-testid="stWidgetLabel"] p {font-weight:600; color:#12303B;}
 /* disclaimer at the bottom center of the page */
 .disclaimer {color:#C9DAE7; font-size:0.9rem; line-height:1.5; text-align:center;
              margin:40px auto 10px; max-width:900px; font-style:italic;}
@@ -375,14 +382,48 @@ def go_global():
     ss.region_pick = GLOBAL
 
 
+# ── Start screen: ask for species, time range and location first ─────────────
+PERIOD_OPTS = ["Last 12 months", *[str(y) for y in sorted(s_all["year"].unique(), reverse=True)], "All time"]
+SPECIES_OPTS = s_all["species_name"].value_counts().index.tolist()
+REGION_OPTS = [GLOBAL] + [r for r in s_all["region"].value_counts().index if r != R.OPEN_OCEAN]
+if R.OPEN_OCEAN in set(s_all["region"]):
+    REGION_OPTS.append(R.OPEN_OCEAN)
+
+
+def start_dashboard():
+    """Copy the start-screen picks into the header filters and the map's region picker."""
+    ss.species_pick = list(ss.get("start_species", []))
+    ss.period_pick = ss.get("start_period", PERIOD_OPTS[0])
+    ss.region_pick = ss.get("start_region", GLOBAL)
+    ss.started = True
+
+
+if not ss.get("started"):
+    top = st.container(key="header")
+    top.markdown(f"<div class='brand'>{logo_html()}<div class='summary'>"
+                 "<b>Whale &amp; Dolphin Tracker Dashboard</b></div></div>", unsafe_allow_html=True)
+    _, mid, _ = st.columns([1, 1.6, 1])
+    with mid:
+        with st.container(key="start_box"):
+            st.markdown("<div class='start-title'>What would you like to explore?</div>"
+                        "<div class='start-sub'>Choose a species, a time range and a location. "
+                        "You can change them any time from the bar at the top.</div>", unsafe_allow_html=True)
+            st.multiselect("Species", SPECIES_OPTS, key="start_species",
+                           placeholder="All species (leave empty to include every species)")
+            st.selectbox("Time range", PERIOD_OPTS, key="start_period")
+            st.selectbox("Location", REGION_OPTS, key="start_region",
+                         format_func=lambda r: "Global, all regions" if r == GLOBAL else r)
+            st.button("Show dashboard", type="primary", on_click=start_dashboard, use_container_width=True)
+    st.stop()                                   # nothing else is drawn until they press the button
+
+
 # ── Header: title + filters ──────────────────────────────────────────────────
 header_box = st.container(key="header")
 h1, h2, h3, h4 = header_box.columns([5.6, 1.3, 2.2, 1.6], vertical_alignment="center")
 with h1:
     brand_slot = st.empty()
-years = sorted(s_all["year"].unique(), reverse=True)
-window = h2.selectbox("Period", ["Last 12 months", *[str(y) for y in years], "All time"])
-sp_filter = h3.multiselect("Species", s_all["species_name"].value_counts().index.tolist(), placeholder="All species")
+window = h2.selectbox("Period", PERIOD_OPTS, key="period_pick")
+sp_filter = h3.multiselect("Species", SPECIES_OPTS, key="species_pick", placeholder="All species")
 who = h4.selectbox("Contributor", ["Everyone", *s_all["contributor"].value_counts().index.tolist()])
 
 if window == "Last 12 months":
@@ -411,9 +452,7 @@ left, center, right = st.columns([3, 4, 3])
 # ── Center: region search + choropleth map ───────────────────────────────────
 with center:
     with card("map"):
-        options = [GLOBAL] + [r for r in s_all["region"].value_counts().index if r != R.OPEN_OCEAN]
-        if R.OPEN_OCEAN in set(s_all["region"]):
-            options.append(R.OPEN_OCEAN)
+        options = REGION_OPTS
         if ss.region_pick not in options:
             ss.region_pick = GLOBAL
         c1, c2 = st.columns([5, 1.3], vertical_alignment="bottom")
