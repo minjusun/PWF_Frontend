@@ -89,7 +89,10 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .st-key-header [data-baseweb="select"] > div:hover {background: rgba(255,255,255,0.2) !important;}
 .st-key-header [data-baseweb="select"] div, .st-key-header [data-baseweb="select"] input,
 .st-key-header [data-baseweb="select"] svg {color: #FFFFFF !important; fill: #FFFFFF !important;}
-[data-testid="stToolbar"] button, [data-testid="stToolbar"] a, [data-testid="stToolbar"] span {color: #E6EEF3 !important;}
+/* No Streamlit toolbar in the top-right: hides Fork / Share / GitHub and the ⋮ menu
+   (Rerun, Settings, Print, Record a screencast, Clear cache...) */
+[data-testid="stToolbar"], [data-testid="stToolbarActions"], [data-testid="stMainMenu"], #MainMenu,
+[data-testid="stAppDeployButton"] {display:none !important;}
 .brand-logo {height:42px; width:auto; display:block;}
 .brand-divider {width:1px; height:30px; background:rgba(255,255,255,0.35);}
 .brand-logo, .brand-divider {flex-shrink:0;}
@@ -103,7 +106,7 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 /* "About" on the right end of the header line; hover (or tab to it) to see the story */
 .st-key-header [data-testid="stElementContainer"], .st-key-header [data-testid="stMarkdown"],
 .st-key-header [data-testid="stMarkdownContainer"] {overflow:visible !important;}
-.about {position:relative; margin-left:auto; margin-right:-30px; flex-shrink:0; padding:4px 2px; cursor:default;
+.about {position:relative; margin-left:auto; flex-shrink:0; padding:4px 2px; cursor:default;
         color:#C9DAE7; font-size:0.92rem; font-weight:600; letter-spacing:0.02em; outline:none;}
 .about:hover, .about:focus-within {color:#FFFFFF;}
 .about-pop {position:absolute; right:0; top:calc(100% + 12px); width:380px; z-index:1000;
