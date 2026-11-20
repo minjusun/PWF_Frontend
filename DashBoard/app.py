@@ -875,7 +875,8 @@ with c_activity:
             act_sub += " (all species)"
     else:
         act_sub = scope_text("Trips and sightings per quarter")
-    with card("activity", "Activity over time", act_sub):
+    act_title = "Species count per year" if act_mode == "Species" else "Trips & sightings over time"
+    with card("activity", act_title, act_sub):
         what = st.segmented_control("Show", ["Trips & sightings", "Species"], default="Trips & sightings",
                                     key="act_what", label_visibility="collapsed") or "Trips & sightings"
         fig = go.Figure()
