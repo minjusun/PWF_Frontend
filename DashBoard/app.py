@@ -249,6 +249,51 @@ def side_image_html():
     return "<div class='side-img side-img-missing'>Add dashimg.JPG next to app.py</div>"
 
 
+# ── Humpback whales: split into North / South Pacific (dashboard only) ───────
+HUMPBACK = "Humpback Whale"
+HUMPBACK_N, HUMPBACK_S = "Humpback Whale (North Pacific)", "Humpback Whale (South Pacific)"
+
+
+def in_pacific(lat, lon):
+    """Rough Pacific Ocean test from position (degrees), tuned for the main whale-watching coasts."""
+    lat, lon = np.asarray(lat, float), np.asarray(lon, float)
+    west = (lon >= 120) & ((lat >= -30) | (lon >= 146))   # Asia/Australia eastwards; south of 30°S only
+                                                          # east of Bass Strait (Great Australian Bight = Indian)
+    east_open = lon <= -100                               # Hawaii, Alaska, west coast of North America
+    # Central America: a slanted line keeps the Caribbean coast (Limón, Bocas, Nicaragua) out
+    central = (((lat >= 8.5) & (lat < 15) & (lon <= -82.9 - (lat - 8.5) * 0.4)) |
+               ((lat >= 15) & (lat < 18) & (lon <= -91)))  # Guatemala / southern Mexico
+    south_am = (lat < 8.5) & (lat >= -18) & (lon <= -77)  # Panama to Peru
+    chile = (lat < -18) & (lon <= -70)                    # Chile
+    return west | east_open | central | south_am | chile
+
+
+def split_humpbacks(s):
+    """Rename Pacific humpback sightings to a North or South Pacific species, by hemisphere.
+    Humpbacks outside the Pacific (Atlantic, Indian Ocean) keep the plain name."""
+    is_hb = s["species_name"].astype(str).str.strip().str.lower() == HUMPBACK.lower()
+    if not is_hb.any():
+        return s
+    pac = is_hb & in_pacific(s["lat"], s["lon"])
+    south = s["lat"] < 0
+    # Pacific coast of Central America and Colombia (north of the equator) is shared: North Pacific
+    # whales (Central America DPS) breed there in the northern winter, and South Pacific whales
+    # breed there in the southern winter. So go by month: July-November = South Pacific.
+    shared = pac & (s["lat"] >= 0) & (s["lat"] < 15) & (s["lon"] >= -92) & (s["lon"] <= -77)
+    southern_season = s["ts"].dt.month.isin([7, 8, 9, 10, 11])
+    south = south | (shared & southern_season)
+    s = s.copy()
+    s.loc[pac & ~south, "species_name"] = HUMPBACK_N
+    s.loc[pac & south, "species_name"] = HUMPBACK_S
+    return s
+
+
+def plural(name):
+    """d.plural, but keeps a bracketed population on the end: 'Humpback Whales (North Pacific)'."""
+    m = re.match(r"^(.*?)\s*(\([^)]*\))$", str(name))
+    return f"{d.plural(m.group(1))} {m.group(2)}" if m else d.plural(name)
+
+
 def snapshot(items):
     cells = "".join(f"<div><span>{html.escape(k)}</span><b title='{html.escape(str(v))}'>{html.escape(str(v))}</b></div>"
                     for k, v in items)
@@ -298,6 +343,7 @@ def load(source: str):
     else:
         raw = d.load_demo()
     s, t = d.prepare(*raw, real=(source != "demo"))
+    s = split_humpbacks(s)                     # North / South Pacific humpbacks as two species
     land = load_land()
     if land is not None and len(s):            # only keep sightings on the water
         pts = s[["lat", "lon"]].round(4).drop_duplicates()
@@ -544,7 +590,7 @@ if all_species_picked:
     sp_label, sp_plural = "All species", "Whales and dolphins"
     sp_names = "All species"
 elif len(sp_filter) == 1:
-    sp_label, sp_plural = sp_filter[0], d.plural(sp_filter[0])
+    sp_label, sp_plural = sp_filter[0], plural(sp_filter[0])
     sp_names = sp_filter[0]
 else:
     sp_label, sp_plural = f"{len(sp_filter)} selected species", "The selected species"
@@ -757,7 +803,7 @@ if not sp_rank.empty:
     Humphrey["curve"] = (f"The dark line is {ss.get('curve_year', now.year)}, the dotted line is the average of "
                        f"all other years. Above the dots means a busier month than usual!")
 if not grp.empty:
-    Humphrey["group"] = (f"{d.plural(grp.iloc[-1]['Species'])} travel in the biggest groups, about "
+    Humphrey["group"] = (f"{plural(grp.iloc[-1]['Species'])} travel in the biggest groups, about "
                        f"{grp.iloc[-1]['Median']:.0f} per sighting.")
 # bottom charts (under the arrow): live facts too, with a simple fallback if there's no data
 try:
