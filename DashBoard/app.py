@@ -170,7 +170,9 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .sp-tag {color:#8AA0A8; font-size:0.74rem; line-height:1.4; margin:0 0 8px;}
 .sp-tag b {font-weight:500; color:#6B848D;}
 /* The four charts in the two rows under the quote: same card height, so each row lines up */
-.st-key-card_activity, .st-key-card_season, .st-key-card_curve, .st-key-card_group {min-height:350px;}
+.st-key-card_activity, .st-key-card_season, .st-key-card_curve, .st-key-card_group {min-height:320px;}
+/* Top 5 contributors and Top 5 species: same height */
+.st-key-card_contrib, .st-key-card_species_list {min-height:258px;}
 /* Top 5 contributors (past year): rank + boat name + sightings */
 .ctab td.rk, .ctab th.rk {width:42px; color:#5B7680;}
 .ctab {width:100%; border-collapse:collapse; font-size:0.86rem; color:#12303B;}
@@ -799,7 +801,7 @@ with c_best:
                          color_discrete_map={"Best months": DEEP, "Other months": MIST},
                          category_orders={"Month": d.MONTHS})
             fig.update_traces(hovertemplate="%{x}: about %{y:.0f} sightings in a typical year<extra></extra>")
-            st.plotly_chart(style(fig, h=185, x="Month", y="Sightings (typical month)"),
+            st.plotly_chart(style(fig, h=212, x="Month", y="Sightings (typical month)"),
                             config=PLOT_CFG, theme=None, key="season_best")
 
 # ── Row line 2: this year vs past + typical group size ───────────────────────
@@ -826,7 +828,7 @@ else:
                             line=dict(color=DEEP, width=2.5), marker=dict(size=6),
                             hovertemplate="%{x}: %{y:.0f}<extra>" + str(curve_year) + "</extra>")
             fig.update_xaxes(categoryorder="array", categoryarray=d.MONTHS)
-            st.plotly_chart(style(fig, h=172, legend=True, x="Month", y="Sightings"), config=PLOT_CFG, theme=None, key="season_vs")
+            st.plotly_chart(style(fig, h=190, legend=True, x="Month", y="Sightings"), config=PLOT_CFG, theme=None, key="season_vs")
 
 with c_group:
     with card("group", "Typical group size", scope_text("Median animals per sighting", period=True)):
@@ -837,7 +839,7 @@ with c_group:
         else:
             fig = px.bar(grp, x="Median", y="Species", orientation="h", color_discrete_sequence=[SEAFOAM])
             fig.update_layout(bargap=0.45)   # more space between the bars
-            st.plotly_chart(style(fig, h=250, x="Median animals per sighting", y="Species"), config=PLOT_CFG, theme=None, key="group_size")
+            st.plotly_chart(style(fig, h=240, x="Median animals per sighting", y="Species"), config=PLOT_CFG, theme=None, key="group_size")
 
 # ── More charts (hidden until the button is pressed) ─────────────────────────
 def toggle_more():
