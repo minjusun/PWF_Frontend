@@ -19,10 +19,6 @@ from streamlit_folium import st_folium
 import data as d
 import whale_regions as R   # region boundaries (named so it can't clash with other "regions" modules)
 
-# The sidebar's Description search looks in general_notes, which data.py doesn't pull out by default.
-if "general_notes" not in d.VD_TEXT:
-    d.VD_TEXT.append("general_notes")
-
 st.set_page_config(page_title="Whale & Dolphin Tracker Dashboard", layout="wide", initial_sidebar_state="expanded")
 
 GLOBAL = "Global"
@@ -396,7 +392,7 @@ TODAY = now.date()
 
 # Sidebar widgets (sb_*) can be changed freely; the dashboard only uses the "applied" copy,
 # which is updated when Search is pressed (or by a map click / Reset).
-DEFAULTS = {"sb_species": [], "sb_desc": "", "sb_date_mode": "Preset", "sb_date": TODAY,
+DEFAULTS = {"sb_species": [], "sb_date_mode": "Preset", "sb_date": TODAY,
             "sb_range": (max(DATA_MIN, TODAY - pd.Timedelta(days=30).to_pytimedelta()), TODAY),
             "sb_preset": PERIOD_OPTS[0], "sb_loc_mode": "Whole world",
             "sb_region": REGION_OPTS[0] if REGION_OPTS else None}
@@ -437,8 +433,6 @@ with st.sidebar:
                 unsafe_allow_html=True)
     st.multiselect("Species", SPECIES_OPTS, key="sb_species", placeholder="Species",
                    label_visibility="collapsed")
-    st.text_input("Description", key="sb_desc", placeholder="Description", label_visibility="collapsed",
-                  help="Finds sightings whose notes contain these words.")
     with st.container(key="sb_date_box"):
         st.markdown("<div class='sb-legend'>Date</div>", unsafe_allow_html=True)
         st.radio("Date", DATE_MODES, key="sb_date_mode", horizontal=True, label_visibility="collapsed")
@@ -509,19 +503,12 @@ hist_start, hist_end = s_all["ts"].min(), now + pd.Timedelta(days=1)
 region_sel = A["sb_region"] if A["sb_loc_mode"] == "Region" and A["sb_region"] in REGION_OPTS else None
 
 
-def narrow(df):
-    """Description filter, shared by every view."""
-    if A["sb_desc"].strip() and "general_notes" in df.columns:
-        df = df[df["general_notes"].fillna("").str.contains(A["sb_desc"].strip(), case=False, regex=False)]
-    return df
-
-
-s, t = narrow(s_all), t_all
+s, t = s_all, t_all
 if sp_filter:
     s = s[s["species_name"].isin(sp_filter)]
 if who != "Everyone":
     s, t = s[s["contributor"] == who], t[t["contributor"] == who]
-follow = bool(sp_filter) or bool(A['sb_desc'].strip())
+follow = bool(sp_filter)
 s_period, t_period = d.slice_data(s, t, start, end, tracks_follow_sightings=follow)
 region_counts = s_period["region"].value_counts()
 
@@ -586,8 +573,7 @@ s_hist_all = d.slice_data(s, t, hist_start, hist_end)[0]
 
 # Same region + contributor, but ignoring the Species filter. Used for "how many different species"
 # counts, which would otherwise just show 1 (or 2...) every month when species are filtered.
-s_nosp = narrow(s_all)
-s_nosp = s_nosp if who == "Everyone" else s_nosp[s_nosp["contributor"] == who]
+s_nosp = s_all if who == "Everyone" else s_all[s_all["contributor"] == who]
 t_nosp = t_all if who == "Everyone" else t_all[t_all["contributor"] == who]
 s_nosp_reg = s_nosp if is_global else s_nosp[s_nosp["region"] == region_sel]
 s_hist_nosp, t_hist_nosp = d.slice_data(s_nosp_reg, t_nosp, hist_start, hist_end,
