@@ -207,15 +207,16 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .dl-title {text-align:center; font-size:3.4rem; font-weight:800; line-height:1.1; letter-spacing:0.02em;
            margin:0 0 46px;}
 .dl-title .outline {color:transparent; -webkit-text-stroke:1.5px #FFFFFF; font-weight:500;}
-.dl-row {display:flex; align-items:center; justify-content:center; gap:90px; flex-wrap:wrap;}
-.dl-logo {width:200px; height:auto; display:block; flex-shrink:0;}
+.dl-row {display:flex; align-items:center; justify-content:center; gap:60px; flex-wrap:wrap;}
+.dl-logo {width:130px; height:auto; display:block; flex-shrink:0;}
 .dl-text {font-size:1.15rem; line-height:1.5; margin:0 0 20px; color:#FFFFFF;}
 .dl-badges {display:flex; gap:14px; align-items:center; flex-wrap:wrap;}
 .dl-badges a {display:block; line-height:0;}
 .dl-badges img {height:48px; width:auto; display:block;}
-/* disclaimer at the bottom center of the page */
-.disclaimer {color:#C9DAE7; font-size:0.9rem; line-height:1.5; text-align:center;
-             margin:40px auto 10px; max-width:900px; font-style:italic;}
+.dl-badges a.badge-apple {background:#000000; border-radius:8px; min-height:48px; min-width:144px;
+                          display:flex; align-items:center; justify-content:center; text-decoration:none;}
+.dl-badges a.badge-apple img {color:#FFFFFF; font-size:0.85rem; font-weight:600; line-height:1.2;
+                              text-align:center;}   /* styles the fallback text if the image fails */
 </style>
 """, unsafe_allow_html=True)
 
@@ -226,7 +227,8 @@ ABOUT_TEXT = ("Whale & Dolphin Tracker originated from the realization that tour
               "allowing members of the public from all over the world to participate in citizen science by "
               "recording sightings of marine mammals. Contributors are now able to use their mobile phone to "
               "record the GPS location of the animals, group size, observed behaviors, as well as upload any "
-              "photos they may have taken! This dashboard presents data from Whale & Dolphin Tracker.")
+              "photos they may have taken! This dashboard presents opportunistic data collected by community "
+              "scientists from the Whale & Dolphin Tracker app.")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -324,16 +326,16 @@ def download_section_html():
     gp = badge_src(("googleplay.png", "googleplay.svg"),
                    "https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png")
     ap = badge_src(("appstore.png", "appstore.svg"),
-                   "https://tools.applemarketingtools.com/api/badges/download-on-the-app-store/black/en-us")
+                   "https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg")
     return (
         "<div class='dl'>"
-        "<div class='dl-title'>DOWNLOAD <span class='outline'>THE APP</span></div>"
+        "<div class='dl-title'>BE PART OF <span class='outline'>THE CHANGE</span></div>"
         f"<div class='dl-row'>{wdt_logo_html('dl-logo')}<div>"
         "<div class='dl-text'>Download the app from the App Store or from Google Play below</div>"
         "<div class='dl-badges'>"
         f"<a href='{html.escape(GOOGLE_PLAY_URL)}' target='_blank' rel='noopener'>"
         f"<img src='{gp}' alt='Get it on Google Play' style='height:70px;margin:-11px -10px'></a>"
-        f"<a href='{html.escape(APP_STORE_URL)}' target='_blank' rel='noopener'>"
+        f"<a class='badge-apple' href='{html.escape(APP_STORE_URL)}' target='_blank' rel='noopener'>"
         f"<img src='{ap}' alt='Download on the App Store'></a>"
         "</div></div></div></div>")
 
@@ -987,9 +989,6 @@ if ss.get("show_more"):
 # ── Download the app (bottom of the page) ────────────────────────────────────
 st.markdown(download_section_html(), unsafe_allow_html=True)
 
-# ── Disclaimer at the bottom of the page ─────────────────────────────────────
-st.markdown("<div class='disclaimer'>This presents opportunistic data collected by community scientists "
-            "from the Whale &amp; Dolphin Tracker app.</div>", unsafe_allow_html=True)
 
 
 # ── Humphrey's facts: what he says when you click each card ────────────────────
