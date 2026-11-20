@@ -640,10 +640,8 @@ left, center, right = st.columns([3, 4, 3])
 # ── Center: region search + choropleth map ───────────────────────────────────
 with center:
     with card("map"):
-        c1, c2 = st.columns([5, 1.3], vertical_alignment="center")
-        c1.markdown(f"<div class='card-title'>{html.escape(region_sel or 'Whole world')}</div>",
+        st.markdown(f"<div class='card-title'>{html.escape(region_sel or 'Whole world')}</div>",
                     unsafe_allow_html=True)
-        c2.button("Whole world", on_click=go_global, disabled=region_sel is None, use_container_width=True)
 
         m = folium.Map(location=[20, -100], zoom_start=2, tiles=None, world_copy_jump=True, min_zoom=2,
                        control_scale=True)
@@ -681,7 +679,7 @@ with center:
             ss.pending_region = GLOBAL if clicked == region_sel else clicked
             st.rerun()
         st.markdown("<div class='card-sub' style='padding-bottom:6px'>Click a region, or pick one in the sidebar, to see its "
-                    "stats. Click it again or press Whole world to go back.</div>", unsafe_allow_html=True)
+                    "stats. Click it again, or choose Whole world in the sidebar, to go back.</div>", unsafe_allow_html=True)
         if boundary_err:
             st.caption("Couldn't download region boundaries, so 1° squares are shown instead.")
 
