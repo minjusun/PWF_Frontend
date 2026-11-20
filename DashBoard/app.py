@@ -169,7 +169,10 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 /* "Species: ..." tag on the charts that follow the header Species filter */
 .sp-tag {color:#8AA0A8; font-size:0.74rem; line-height:1.4; margin:0 0 8px;}
 .sp-tag b {font-weight:500; color:#6B848D;}
-/* Top 5 contributors (past year): boat name + sightings */
+/* The four charts in the two rows under the quote: same card height, so each row lines up */
+.st-key-card_activity, .st-key-card_season, .st-key-card_curve, .st-key-card_group {min-height:350px;}
+/* Top 5 contributors (past year): rank + boat name + sightings */
+.ctab td.rk, .ctab th.rk {width:42px; color:#5B7680;}
 .ctab {width:100%; border-collapse:collapse; font-size:0.86rem; color:#12303B;}
 .ctab th {text-align:left; font-weight:500; color:#5B7680; padding:6px 8px 8px; border-bottom:1px solid #E3E9EC;}
 .ctab td {padding:7px 8px; border-bottom:1px solid #E3E9EC;}
@@ -664,9 +667,11 @@ def top_boats_past_year(n=5):
 tb = top_boats_past_year()
 with left:
     with card("contrib", "Top 5 Contributors (Past Year)"):
-        rows = "".join(f"<tr><td>{html.escape(str(b))}</td><td class='num'>{int(n):,}</td></tr>"
-                       for b, n in tb.items()) or "<tr><td colspan='2'>No sightings in the past year.</td></tr>"
-        st.markdown("<table class='ctab'><thead><tr><th>Boat</th><th class='num'>Sightings</th></tr></thead>"
+        rows = "".join(f"<tr><td class='rk'>{i}</td><td>{html.escape(str(b))}</td><td class='num'>{int(n):,}</td></tr>"
+                       for i, (b, n) in enumerate(tb.items(), 1)) or \
+            "<tr><td colspan='3'>No sightings in the past year.</td></tr>"
+        st.markdown("<table class='ctab'><thead><tr><th class='rk'>Rank</th><th>Boat</th>"
+                    "<th class='num'>Sightings</th></tr></thead>"
                     f"<tbody>{rows}</tbody></table>", unsafe_allow_html=True)
 
     with card("kpi_users"):
@@ -832,7 +837,7 @@ with c_group:
         else:
             fig = px.bar(grp, x="Median", y="Species", orientation="h", color_discrete_sequence=[SEAFOAM])
             fig.update_layout(bargap=0.45)   # more space between the bars
-            st.plotly_chart(style(fig, h=210, x="Median animals per sighting", y="Species"), config=PLOT_CFG, theme=None, key="group_size")
+            st.plotly_chart(style(fig, h=250, x="Median animals per sighting", y="Species"), config=PLOT_CFG, theme=None, key="group_size")
 
 # ── More charts (hidden until the button is pressed) ─────────────────────────
 def toggle_more():
