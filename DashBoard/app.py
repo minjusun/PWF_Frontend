@@ -35,7 +35,7 @@ PLOT_CFG = {"displayModeBar": False}
 st.markdown("""
 <style>
 html {font-size: 14px;}
-.block-container, [data-testid="stMainBlockContainer"] {padding: 2.6rem 4.5rem 2rem; max-width: 100%;}
+.block-container, [data-testid="stMainBlockContainer"] {padding: calc(104px + 40px) 4.5rem 2rem; max-width: 100%;}
 [data-testid="stVerticalBlock"] {gap: 0.55rem;}
 [class*="st-key-card"] {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; padding:14px 16px 14px;}
 [class*="st-key-card"] [data-testid="stVerticalBlock"] {gap: 0.5rem;}
@@ -54,7 +54,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .snap b {display:block; color:#0E4D64; font-size:1.05rem; font-weight:600; line-height:1.25;
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 /* Left sidebar: "Encounter Search" panel */
-[data-testid="stSidebar"] {background:#FFFFFF; border-right:1px solid #DCE7EA;
+[data-testid="stSidebar"] {top:104px !important; height:calc(100vh - 104px) !important;
+                           background:#FFFFFF; border-right:1px solid #DCE7EA;
                            min-width:300px !important; max-width:300px !important;}
 [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {padding:0.6rem 1.1rem 1.5rem;}
 [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {gap:0.6rem;}
@@ -76,11 +77,11 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 [data-testid="stAppViewContainer"], [data-testid="stMain"] {overflow-x: hidden;}
 .brand {display:flex; align-items:center; gap:14px; flex-wrap:nowrap; padding:0 0 4px; min-width:0;}
 /* Header bar: full width, flush with the top and sides, dark blue */
+/* Header bar: fixed across the full top of the window, above the sidebar */
 .st-key-header {background: linear-gradient(180deg, #1E5F8F 0%, #12446F 45%, #0B3358 100%);
-                width: auto !important; max-width: none; box-sizing: border-box;
-                margin-left: -4.5rem !important; margin-right: -4.5rem !important;
-                margin-top: -3.8rem; margin-bottom: 48px;
-                padding: 2.2rem 4.5rem 26px; border-radius: 0;
+                position: fixed !important; top: 0; left: 0; right: 0; z-index: 999;
+                width: 100vw !important; max-width: 100vw; height: 104px; box-sizing: border-box;
+                margin: 0 !important; padding: 30px 4.5rem 0; border-radius: 0;
                 box-shadow: 0 6px 20px rgba(6,26,48,0.25);}
 .st-key-header [data-baseweb="select"] > div {background: rgba(255,255,255,0.12) !important;
                                               border-color: rgba(255,255,255,0.25) !important;}
@@ -303,15 +304,6 @@ def split_humpbacks(s):
     return s
 
 
-def ocean_of(lat, lon):
-    """Rough ocean name for each position."""
-    lat, lon = np.asarray(lat, float), np.asarray(lon, float)
-    pac = in_pacific(lat, lon) | ((lon >= 100) & (lon < 120) & (lat >= -8))   # incl. South China Sea
-    indian = (lon > 20) & (lat < 31) & ((lon < 100) | ((lat < -8) & (lon < 147)))
-    return np.select([lat <= -60, lat >= 66, pac, indian],
-                     ["Southern Ocean", "Arctic Ocean", "Pacific Ocean", "Indian Ocean"], "Atlantic Ocean")
-
-
 def plural(name):
     """d.plural, but keeps a bracketed population on the end: 'Humpback Whales (North Pacific)'."""
     m = re.match(r"^(.*?)\s*(\([^)]*\))$", str(name))
@@ -382,7 +374,6 @@ def load(source: str):
     cells["region"] = R.assign(cells["lat"], cells["lon"], regions)
     s = s.assign(_la=s["lat"].round(2), _lo=s["lon"].round(2)).merge(
         cells.rename(columns={"lat": "_la", "lon": "_lo"}), on=["_la", "_lo"], how="left").drop(columns=["_la", "_lo"])
-    s["ocean"] = ocean_of(s["lat"], s["lon"])
     used = set(s["region"])
     return s, t, [r for r in regions if r["name"] in used], err
 
@@ -398,9 +389,8 @@ REGION_OPTS = [r for r in s_all["region"].value_counts().index if r != R.OPEN_OC
 if R.OPEN_OCEAN in set(s_all["region"]):
     REGION_OPTS.append(R.OPEN_OCEAN)
 REGION_COUNTS_ALL = s_all["region"].value_counts()
-OCEAN_OPTS = s_all["ocean"].value_counts().index.tolist()
 DATE_MODES = ["On", "Before", "After", "Between", "Preset"]
-LOC_MODES = ["Whole world", "Region", "Ocean"]
+LOC_MODES = ["Whole world", "Region"]
 DATA_MIN = s_all["ts"].min().date()
 TODAY = now.date()
 
@@ -409,8 +399,7 @@ TODAY = now.date()
 DEFAULTS = {"sb_species": [], "sb_desc": "", "sb_date_mode": "Preset", "sb_date": TODAY,
             "sb_range": (max(DATA_MIN, TODAY - pd.Timedelta(days=30).to_pytimedelta()), TODAY),
             "sb_preset": PERIOD_OPTS[0], "sb_loc_mode": "Whole world",
-            "sb_region": REGION_OPTS[0] if REGION_OPTS else None,
-            "sb_ocean": OCEAN_OPTS[0] if OCEAN_OPTS else None}
+            "sb_region": REGION_OPTS[0] if REGION_OPTS else None}
 for k, v in DEFAULTS.items():
     ss.setdefault(k, v)
 ss.setdefault("applied", {k: (list(v) if isinstance(v, list) else v) for k, v in DEFAULTS.items()})
@@ -468,8 +457,6 @@ with st.sidebar:
         st.selectbox("Region", REGION_OPTS, key="sb_region", label_visibility="collapsed",
                      disabled=ss.sb_loc_mode != "Region", placeholder="Location e.g. California",
                      format_func=lambda r: f"{r}  ({int(REGION_COUNTS_ALL.get(r, 0)):,})")
-        st.selectbox("Ocean", OCEAN_OPTS, key="sb_ocean", label_visibility="collapsed",
-                     disabled=ss.sb_loc_mode != "Ocean", placeholder="Ocean")
     b1, b2 = st.columns(2)
     b1.button("Reset", key="sb_reset", on_click=reset_search, use_container_width=True)
     b2.button("Search", key="sb_search", on_click=apply_search, use_container_width=True)
@@ -519,16 +506,13 @@ else:
 hist_start, hist_end = s_all["ts"].min(), now + pd.Timedelta(days=1)
 
 # Location from the sidebar
-ocean_sel = A["sb_ocean"] if A["sb_loc_mode"] == "Ocean" else None
 region_sel = A["sb_region"] if A["sb_loc_mode"] == "Region" and A["sb_region"] in REGION_OPTS else None
 
 
 def narrow(df):
-    """Description and Ocean filters, shared by every view."""
+    """Description filter, shared by every view."""
     if A["sb_desc"].strip() and "general_notes" in df.columns:
         df = df[df["general_notes"].fillna("").str.contains(A["sb_desc"].strip(), case=False, regex=False)]
-    if ocean_sel:
-        df = df[df["ocean"] == ocean_sel]
     return df
 
 
@@ -537,7 +521,7 @@ if sp_filter:
     s = s[s["species_name"].isin(sp_filter)]
 if who != "Everyone":
     s, t = s[s["contributor"] == who], t[t["contributor"] == who]
-follow = bool(sp_filter) or bool(A['sb_desc'].strip()) or bool(ocean_sel)
+follow = bool(sp_filter) or bool(A['sb_desc'].strip())
 s_period, t_period = d.slice_data(s, t, start, end, tracks_follow_sightings=follow)
 region_counts = s_period["region"].value_counts()
 
@@ -548,7 +532,7 @@ left, center, right = st.columns([3, 4, 3])
 with center:
     with card("map"):
         c1, c2 = st.columns([5, 1.3], vertical_alignment="center")
-        c1.markdown(f"<div class='card-title'>{html.escape(region_sel or ocean_sel or 'Whole world')}</div>",
+        c1.markdown(f"<div class='card-title'>{html.escape(region_sel or 'Whole world')}</div>",
                     unsafe_allow_html=True)
         c2.button("Whole world", on_click=go_global, disabled=region_sel is None, use_container_width=True)
 
@@ -617,8 +601,6 @@ def scope_text(main, period=False):
     bits = [main]
     if not is_global:
         bits.append(short_name)
-    elif ocean_sel:
-        bits.append(ocean_sel)
     if who != "Everyone":
         bits.append(who)
     if period:
@@ -630,7 +612,7 @@ rc = region_counts.drop(R.OPEN_OCEAN, errors="ignore")
 esc = html.escape
 if is_global:
     top_r = rc.index[0].split(",")[0] if len(rc) else "—"
-    parts = [f"<b>{esc(ocean_sel or 'Global')}</b>",
+    parts = ["<b>Global</b>",
              f"<b>{len(rc):,}</b> regions with sightings",
              f"Top region <b>{esc(top_r)}</b>",
              f"<b>{t_period['track_id'].nunique():,}</b> total trips",
@@ -907,7 +889,7 @@ st.markdown("<div class='disclaimer'>This presents opportunistic data collected 
 
 
 # ── Humphrey's facts: what he says when you click each card ────────────────────
-place = (f"in the {ocean_sel}" if ocean_sel else "around the world") if is_global else f"in {short_name}"
+place = "around the world" if is_global else f"in {short_name}"
 Humphrey = {
     "kpi_users": f"{cur['users']:,} people logged trips or sightings {place} this period!",
     "kpi_animals": f"{cur['animals']:,} animals counted {place}!",
@@ -1011,7 +993,7 @@ components_whale = """
   const loopId = (win.__whaleLoopId || 0) + 1;
   win.__whaleLoopId = loopId;
   const reduce = win.matchMedia && win.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const TOP_LIMIT = 100, PAD = 4, DASH = 340;   // DASH = speed (px/s) when swimming to a card
+  const TOP_LIMIT = 116, PAD = 4, DASH = 340;   // DASH = speed (px/s) when swimming to a card
   let last = null;
 
   // whichever element actually scrolls (Streamlit scrolls an inner container, not the window)
@@ -1163,7 +1145,7 @@ components_whale = """
         const atHome = hm.under && Math.abs(st.x - homeX) < 3 && Math.abs(st.py - homeY) < 3;
         if (atHome) {
           ly = y + bh + 8;                                 // below him, so it doesn't cover the table
-        } else if (ly < 110) {                                    // would cover the header: put it at his side
+        } else if (ly < 116) {                                    // would cover the header: put it at his side
           ly = y + bh / 2 - bhgt / 2;
           lx = st.x - bwid - 10;
           if (lx < 8) lx = st.x + bw + 10;
