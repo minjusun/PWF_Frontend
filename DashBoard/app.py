@@ -777,9 +777,9 @@ with left:
                         config=PLOT_CFG, theme=None, key="spark_users")
 
 
-# ── Right of map: species spotted (red bars) + image placeholder ─────────────
+# ── Right of map: species sighted (red bars) + image placeholder ─────────────
 with right:
-    with card("species_list", "Top 5 Species Spotted"):
+    with card("species_list", "Top 5 Species Sighted"):
         sp_all = d.species_table(s_scope, start, end)      # every species, most-sighted first
         sp_tab = sp_all.head(5)
         st.dataframe(sp_tab, hide_index=True, height=181, row_height=29, column_config={   # same size as Top 5 contributors
@@ -979,7 +979,7 @@ if ss.get("show_more"):
                 best = tc_.loc[tc_["Calves"].idxmax(), "Month"]
                 calf_who = "" if all_species_picked else f"{sp_label.lower()} "
                 st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>Most {html.escape(calf_who)}"
-                            f"calves are spotted in <b>{best}</b>.</div>", unsafe_allow_html=True)
+                            f"calves are sighted in <b>{best}</b>.</div>", unsafe_allow_html=True)
                 fig = px.bar(tc_, x="Month", y="Calves", color_discrete_sequence=[SAND],
                              category_orders={"Month": d.MONTHS})
                 fig.update_traces(hovertemplate="%{x}: about %{y:.0f} calves in a typical year<extra></extra>")
@@ -1002,16 +1002,16 @@ Humphrey = {
                  "Bars are trips, the line is sightings. Hover over any point to see the exact count."),
     "hot": "Each row is one year and the place with the most sightings that year.",
     "shift": "This shows the busiest month for the species you picked, year by year.",
-    "calf": "Calves are baby whales and dolphins! This shows when the most are spotted.",
+    "calf": "Calves are baby whales and dolphins! This shows when the most are sighted.",
 }
 Humphrey["contrib"] = (f"These boats logged the most sightings this past year. {tb.index[0]} leads with "
                        f"{int(tb.iloc[0]):,} sightings!" if len(tb)
                        else "No boats have logged sightings this past year yet.")
 if len(sp_tab):
-    Humphrey["species_list"] = (f"These are the 5 most-spotted species {place} in the Whale & Dolphin Tracker app. "
+    Humphrey["species_list"] = (f"These are the 5 most-sighted species {place} in the Whale & Dolphin Tracker app. "
                               f"The most common is the {sp_tab.iloc[0]['Species'].lower()}.")
 else:
-    Humphrey["species_list"] = f"No species spotted {place} yet for this period."
+    Humphrey["species_list"] = f"No species sighted {place} yet for this period."
 if not sp_rank.empty:
     best_txt = f" They show up most in {months_txt}." if len(top3) else ""
     Humphrey["season"] = f"Want to see {sp_plural.lower()}?{best_txt}"
@@ -1043,7 +1043,7 @@ try:
     if s_hist["animals_calf"].sum() > 0:
         tcv = d.typical_calves(s_hist, s_all["ts"].min(), now)
         calf_who = "" if all_species_picked else f"{sp_label.lower()} "
-        Humphrey["calf"] = f"Most {calf_who}calves are spotted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}."
+        Humphrey["calf"] = f"Most {calf_who}calves are sighted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}."
 except Exception:
     pass   # keep the general messages set above
 
