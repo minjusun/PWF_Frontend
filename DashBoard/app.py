@@ -62,8 +62,11 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
                                                  border:1px solid #C9D3D7 !important;}
 .sb-title {font-size:1.2rem; color:#3E4F57; text-align:center; font-weight:500; margin:0 0 4px;}
 .sb-tabline {height:2px; background:#1B7F8C; width:55%; margin:0 0 6px;}
-.sb-legend {font-size:0.85rem; color:#0E4D64; font-weight:600; margin:0 0 2px;}
-.st-key-sb_date_box, .st-key-sb_loc_box {border:1px solid #DCE7EA; border-radius:8px; padding:8px 12px 12px;}
+/* Date / Location boxes drawn like a form fieldset: the label sits on the top border line */
+.st-key-sb_date_box, .st-key-sb_loc_box {border:1px solid #D5DEE2; border-radius:6px;
+                                         padding:12px 14px 14px; margin-top:14px; overflow:visible;}
+.sb-legend {display:inline-block; position:relative; margin:-22px 0 10px -6px; padding:0 6px;
+            background:#FFFFFF; font-size:0.9rem; font-weight:400; color:#5B7680; line-height:20px;}
 .st-key-sb_reset button {color:#C8553D !important;}
 /* Page background: one smooth gradient, light blue at the top to dark navy at the bottom */
 [data-testid="stApp"] {background: #06142C;}   /* matches the bottom colour, so the page end blends in */
