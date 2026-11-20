@@ -193,6 +193,20 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .st-key-card_activity, .st-key-card_season, .st-key-card_curve, .st-key-card_group {min-height:320px;}
 /* The three cards under the arrow: same height */
 .st-key-card_hot, .st-key-card_shift, .st-key-card_calf {min-height:316px;}
+/* Top 5 Species table is static: always sorted by sightings, no header sorting, no ⋮ menu or toolbar */
+.st-key-card_species_list [data-testid="stDataFrame"] {pointer-events:none;}
+.st-key-card_species_list [data-testid="stElementToolbar"] {display:none !important;}
+/* Static tables under the arrow: scroll inside, header stays put, only the Year order can change */
+.xtab-wrap {overflow-y:auto; border:1px solid #E3E9EC; border-radius:8px;}
+.xtab {width:100%; border-collapse:collapse; font-size:0.84rem; color:#12303B;}
+.xtab th {position:sticky; top:0; background:#F2F6F7; text-align:left; font-weight:500; color:#5B7680;
+          padding:7px 10px; border-bottom:1px solid #E3E9EC; white-space:nowrap;}
+.xtab td {padding:7px 10px; border-bottom:1px solid #EEF2F4; white-space:nowrap;}
+.xtab tr:last-child td {border-bottom:none;}
+.xtab th.num, .xtab td.num {text-align:right;}
+.xtab .bar {display:inline-block; vertical-align:middle; width:60px; height:6px; border-radius:3px;
+            background:#E3EEF0; margin-right:8px; overflow:hidden;}
+.xtab .bar i {display:block; height:100%; background:#1B7F8C;}
 /* Top 5 contributors and Top 5 species: same height */
 .st-key-card_contrib, .st-key-card_species_list {min-height:258px;}
 /* Top 5 contributors (past year): rank + boat name + sightings */
@@ -777,9 +791,9 @@ with left:
                         config=PLOT_CFG, theme=None, key="spark_users")
 
 
-# ── Right of map: species sighted (red bars) + image placeholder ─────────────
+# ── Right of map: species spotted (red bars) + image placeholder ─────────────
 with right:
-    with card("species_list", "Top 5 Species Sighted"):
+    with card("species_list", "Top 5 Species Spotted"):
         sp_all = d.species_table(s_scope, start, end)      # every species, most-sighted first
         sp_tab = sp_all.head(5)
         st.dataframe(sp_tab, hide_index=True, height=181, row_height=29, column_config={   # same size as Top 5 contributors
@@ -934,7 +948,54 @@ with c_group:
         else:
             fig = px.bar(grp, x="Median", y="Species", orientation="h", color_discrete_sequence=[SEAFOAM])
             fig.update_layout(bargap=0.45)   # more space between the bars
-            st.plotly_chart(style(fig, h=240, x="Median animals per sighting", y="Species"), config=PLOT_CFG, theme=None, key="group_size")
+            fig.update_layout(dragmode=False)                       # static: no zoom, pan or click-select
+            fig.update_xaxes(fixedrange=True); fig.update_yaxes(fixedrange=True)
+            st.plotly_chart(style(fig, h=240, x="Median animals per sighting", y="Species"),
+                            config={**PLOT_CFG, "doubleClick": False, "scrollZoom": False},   # hover still works
+                            theme=None, key="group_size")
+
+# ── Static tables (used under the arrow) ─────────────────────────────────────
+YEAR_ORDER = ["Newest first", "Oldest first"]
+
+
+def year_sorted(df, key):
+    """Sort a table by its Year column ("2026" or "2026 (partial)") in the order picked in `key`."""
+    yr = pd.to_numeric(df["Year"].astype(str).str.extract(r"(\d{4})")[0], errors="coerce")
+    newest = (ss.get(key) or YEAR_ORDER[0]) == YEAR_ORDER[0]
+    return df.assign(_y=yr).sort_values("_y", ascending=not newest, kind="stable").drop(columns="_y")
+
+
+def static_table(df, hide=(), pct=(), height=230, newest=True):
+    """A plain HTML table: no sorting, no menus. Numbers right-aligned; `pct` columns as % with a bar."""
+    df = df.drop(columns=[c for c in hide if c in df.columns])
+    is_num = {c: pd.api.types.is_numeric_dtype(df[c]) and c != "Year" and c not in pct for c in df.columns}
+    head = "".join(f"<th class='{'num' if is_num[c] else ''}'>{html.escape(str(c))}"
+                   f"{(' ↓' if newest else ' ↑') if c == 'Year' else ''}</th>" for c in df.columns)
+
+    def cell(c, v):
+        if pd.isna(v):
+            return "<td></td>"
+        if c in pct:
+            w = max(0.0, min(1.0, float(v))) * 100
+            return f"<td><span class='bar'><i style='width:{w:.0f}%'></i></span>{float(v):.0%}</td>"
+        if c == "Year":
+            return f"<td>{html.escape(str(int(v)) if isinstance(v, (int, float, np.integer, np.floating)) else str(v))}</td>"
+        if is_num[c]:
+            txt = f"{int(v):,}" if float(v).is_integer() else f"{float(v):,.1f}"
+            return f"<td class='num'>{txt}</td>"
+        return f"<td>{html.escape(str(v))}</td>"
+
+    body = "".join("<tr>" + "".join(cell(c, r[c]) for c in df.columns) + "</tr>" for _, r in df.iterrows())
+    if not body:
+        body = f"<tr><td colspan='{len(df.columns)}'>No data yet.</td></tr>"
+    return (f"<div class='xtab-wrap' style='max-height:{height}px'><table class='xtab'>"
+            f"<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>")
+
+
+def year_order_control(key):
+    st.segmented_control("Year order", YEAR_ORDER, default=YEAR_ORDER[0], key=key, label_visibility="collapsed")
+    return (ss.get(key) or YEAR_ORDER[0]) == YEAR_ORDER[0]
+
 
 # ── More charts (hidden until the button is pressed) ─────────────────────────
 def toggle_more():
@@ -950,15 +1011,16 @@ if ss.get("show_more"):
     with c_hot:
         if is_global:
             with card("hot", "Busiest region by year", scope_text("All years")):
-                st.dataframe(d.busiest_region_by_year(s_hist), hide_index=True, height=249,
-                             column_config={"Year": st.column_config.NumberColumn(format="%d"),
-                                            "Share of year": None})
+                newest = year_order_control("hot_order")
+                st.markdown(static_table(year_sorted(d.busiest_region_by_year(s_hist), "hot_order"),
+                                         hide=("Share of year",), height=212, newest=newest),
+                            unsafe_allow_html=True)
         else:
             with card("hot", f"{short_name} vs. Global", scope_text("All years")):
-                st.dataframe(d.region_rank_by_year(s_hist_all, region_sel), hide_index=True, height=249,
-                             column_config={"Year": st.column_config.NumberColumn(format="%d"),
-                                            "Share of global": st.column_config.ProgressColumn(
-                                                format="percent", min_value=0, max_value=1)})
+                newest = year_order_control("hot_order")
+                st.markdown(static_table(year_sorted(d.region_rank_by_year(s_hist_all, region_sel), "hot_order"),
+                                         pct=("Share of global",), height=212, newest=newest),
+                            unsafe_allow_html=True)
 
     with c_peak:
         with card("shift", "Busiest month each year", scope_text("All years")):
@@ -966,8 +1028,10 @@ if ss.get("show_more"):
             if sp_rank.empty:
                 st.caption("No sightings here yet.")
             else:
-                st.dataframe(d.peak_month_by_year(sd, data_start, data_end), hide_index=True, height=230,
-                             column_config={"Sightings that year": None})
+                newest = year_order_control("shift_order")
+                st.markdown(static_table(year_sorted(d.peak_month_by_year(sd, data_start, data_end), "shift_order"),
+                                         hide=("Sightings that year",), height=186, newest=newest),
+                            unsafe_allow_html=True)
 
     with c_calf:
         with card("calf", "Calves by month", scope_text("Calves in a typical month")):
@@ -979,7 +1043,7 @@ if ss.get("show_more"):
                 best = tc_.loc[tc_["Calves"].idxmax(), "Month"]
                 calf_who = "" if all_species_picked else f"{sp_label.lower()} "
                 st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>Most {html.escape(calf_who)}"
-                            f"calves are sighted in <b>{best}</b>.</div>", unsafe_allow_html=True)
+                            f"calves are spotted in <b>{best}</b>.</div>", unsafe_allow_html=True)
                 fig = px.bar(tc_, x="Month", y="Calves", color_discrete_sequence=[SAND],
                              category_orders={"Month": d.MONTHS})
                 fig.update_traces(hovertemplate="%{x}: about %{y:.0f} calves in a typical year<extra></extra>")
@@ -1002,16 +1066,16 @@ Humphrey = {
                  "Bars are trips, the line is sightings. Hover over any point to see the exact count."),
     "hot": "Each row is one year and the place with the most sightings that year.",
     "shift": "This shows the busiest month for the species you picked, year by year.",
-    "calf": "Calves are baby whales and dolphins! This shows when the most are sighted.",
+    "calf": "Calves are baby whales and dolphins! This shows when the most are spotted.",
 }
 Humphrey["contrib"] = (f"These boats logged the most sightings this past year. {tb.index[0]} leads with "
                        f"{int(tb.iloc[0]):,} sightings!" if len(tb)
                        else "No boats have logged sightings this past year yet.")
 if len(sp_tab):
-    Humphrey["species_list"] = (f"These are the 5 most-sighted species {place} in the Whale & Dolphin Tracker app. "
+    Humphrey["species_list"] = (f"These are the 5 most-spotted species {place} in the Whale & Dolphin Tracker app. "
                               f"The most common is the {sp_tab.iloc[0]['Species'].lower()}.")
 else:
-    Humphrey["species_list"] = f"No species sighted {place} yet for this period."
+    Humphrey["species_list"] = f"No species spotted {place} yet for this period."
 if not sp_rank.empty:
     best_txt = f" They show up most in {months_txt}." if len(top3) else ""
     Humphrey["season"] = f"Want to see {sp_plural.lower()}?{best_txt}"
@@ -1043,7 +1107,7 @@ try:
     if s_hist["animals_calf"].sum() > 0:
         tcv = d.typical_calves(s_hist, s_all["ts"].min(), now)
         calf_who = "" if all_species_picked else f"{sp_label.lower()} "
-        Humphrey["calf"] = f"Most {calf_who}calves are sighted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}."
+        Humphrey["calf"] = f"Most {calf_who}calves are spotted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}."
 except Exception:
     pass   # keep the general messages set above
 
