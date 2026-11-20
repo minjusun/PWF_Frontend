@@ -57,6 +57,11 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {gap:0.6rem;}
 [data-testid="stSidebar"] [data-baseweb="select"] > div {background:#FFFFFF !important;
                                                          border:1px solid #C9D3D7 !important;}
+/* Sidebar is always open: no collapse / expand arrows, and undo a collapse from an older session */
+[data-testid="stSidebarCollapseButton"], [data-testid="stSidebarCollapsedControl"],
+[data-testid="stExpandSidebarButton"], [data-testid="stSidebarHeader"] {display:none !important;}
+[data-testid="stSidebar"][aria-expanded="false"] {transform:none !important; margin-left:0 !important;
+                                                  visibility:visible !important;}
 .sb-title {font-size:1.2rem; color:#3E4F57; text-align:center; font-weight:500; margin:0 0 4px;}
 .sb-tabline {height:2px; background:#1B7F8C; width:55%; margin:0 0 6px;}
 .sb-legend {font-size:0.85rem; color:#0E4D64; font-weight:600; margin:0 0 2px;}
