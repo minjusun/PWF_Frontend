@@ -61,7 +61,6 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .st-key-sidepanel [data-baseweb="select"] > div {background:#FFFFFF !important;
                                                  border:1px solid #C9D3D7 !important;}
 .sb-title {font-size:1.2rem; color:#3E4F57; text-align:center; font-weight:500; margin:0 0 4px;}
-.sb-tabline {height:2px; background:#1B7F8C; width:55%; margin:0 0 6px;}
 /* Date / Location boxes drawn like a form fieldset: the label sits on the top border line */
 .st-key-sb_date_box, .st-key-sb_loc_box {border:1px solid #D5DEE2; border-radius:6px;
                                          padding:12px 14px 14px; margin-top:14px; overflow:visible;}
@@ -435,7 +434,7 @@ if "pending_region" in ss:                      # set by a map click on the prev
     set_location(None if picked == GLOBAL else picked)
 
 with st.container(key="sidepanel"):
-    st.markdown("<div class='sb-title'>Encounter Search</div><div class='sb-tabline'></div>",
+    st.markdown("<div class='sb-title'>Encounter Search</div>",
                 unsafe_allow_html=True)
     st.multiselect("Species", SPECIES_OPTS, key="sb_species", placeholder="Species",
                    label_visibility="collapsed")
