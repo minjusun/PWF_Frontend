@@ -700,12 +700,12 @@ s_hist_nosp, t_hist_nosp = d.slice_data(s_nosp_reg, t_nosp, hist_start, hist_end
                                         tracks_follow_sightings=not is_global)
 
 
-def scope_text(main, period=False):
+def scope_text(main, period=False, region=True):
     """Short chart subtitle: the main text, plus only the filters that are actually narrowing it
     (a picked region or contributor, and the Period for charts that use it). Species is shown
     separately by the small "Species:" line, so it's left out here."""
     bits = [main]
-    if not is_global:
+    if region and not is_global:
         bits.append(short_name)
     if who != "Everyone":
         bits.append(who)
@@ -864,6 +864,17 @@ else:
     sp_names = (", ".join(sp_filter) if len(sp_filter) <= 3
                 else f"{', '.join(sp_filter[:3])} and {len(sp_filter) - 3} more")
 sp_tag = f"<div class='sp-tag'>Species: <b>{html.escape(sp_names)}</b></div>"
+# Seasonal charts (Best time to see, Busiest month, Calves) only make sense for one place:
+# use the picked region, or for Whole world the region with the most sightings.
+if is_global:
+    _rc = s_hist["region"].value_counts().drop(R.OPEN_OCEAN, errors="ignore")
+    season_region = _rc.index[0] if len(_rc) else None
+else:
+    season_region = region_sel
+season_short = season_region.split(",")[0] if season_region else GLOBAL
+season_note = " · region with the most sightings" if is_global and season_region else ""
+s_season = s_hist[s_hist["region"] == season_region] if season_region else s_hist
+
 c_activity, c_best = st.columns([5, 5])
 data_start, data_end = s_all["ts"].min(), now
 
@@ -929,9 +940,10 @@ with c_best:
     if sp_rank.empty:
         st.info("No sightings here yet. Pick another region or widen the filters.")
     else:
-        with card("season", "Best time to see", scope_text("Sightings in a typical month")):
+        with card("season", f"Best time to see ({season_short})",
+                  scope_text("Sightings in a typical month", region=False) + season_note):
             st.markdown(sp_tag, unsafe_allow_html=True)
-            sd = s_hist                      # already limited to the header Species filter
+            sd = s_season                    # header Species filter + the seasonal region
             tm = d.typical_month(sd, data_start, data_end)
             top3 = tm.nlargest(3, "Average")
             top3 = top3[top3["Average"] > 0]
@@ -956,14 +968,23 @@ if sp_rank.empty:
         st.info("No sightings here yet. Pick another region or widen the filters.")
 else:
     with c_year:
-        with card("curve", "Sightings comparison",
-                  scope_text("One year vs. other years")):
+        with card("curve", "Monthly sightings comparison",
+                  scope_text("Sightings each month: one year vs. the average of other years", region=False)):
             st.markdown(sp_tag, unsafe_allow_html=True)
-            sd_c = s_hist                    # already limited to the header Species filter
+            # region picker: starts on the seasonal region, follows it when the sidebar location changes
+            curve_opts = [r for r in s_hist_all["region"].value_counts().index if r != R.OPEN_OCEAN]
+            if ss.get("curve_region_ctx") != season_region or ss.get("curve_region") not in curve_opts:
+                ss["curve_region"] = (season_region if season_region in curve_opts
+                                      else (curve_opts[0] if curve_opts else None))
+                ss["curve_region_ctx"] = season_region
+            cr1, cr2 = st.columns([3, 1.4])
+            curve_region = cr1.selectbox("Region", curve_opts, key="curve_region", label_visibility="collapsed",
+                                         format_func=lambda r: r.split(",")[0])
+            sd_c = s_hist_all[s_hist_all["region"] == curve_region] if curve_region else s_hist_all
             yr_opts = sorted(sd_c["year"].unique().tolist(), reverse=True) or [now.year]
             if ss.get("curve_year") not in yr_opts:
                 ss["curve_year"] = yr_opts[0]                  # newest year with sightings
-            curve_year = st.selectbox("Year", yr_opts, key="curve_year", label_visibility="collapsed")
+            curve_year = cr2.selectbox("Year", yr_opts, key="curve_year", label_visibility="collapsed")
             ty = d.year_vs_others(sd_c, data_start, now, curve_year)
             fig = go.Figure()
             fig.add_scatter(x=ty["Month"], y=ty["Other years (average)"], name="Other years (average)", mode="lines",
@@ -1047,7 +1068,8 @@ if ss.get("show_more"):
                                          height=249), unsafe_allow_html=True)
 
     with c_peak:
-        with card("shift", "Busiest month each year", scope_text("All years")):
+        with card("shift", f"Busiest month each year ({season_short})",
+                  scope_text("All years", region=False) + season_note):
             st.markdown(sp_tag, unsafe_allow_html=True)
             if sp_rank.empty:
                 st.caption("No sightings here yet.")
@@ -1056,12 +1078,13 @@ if ss.get("show_more"):
                                          hide=("Sightings that year",), height=230), unsafe_allow_html=True)
 
     with c_calf:
-        with card("calf", "Calves by month", scope_text("Calves in a typical month")):
+        with card("calf", f"Calves by month ({season_short})",
+                  scope_text("Calves in a typical month", region=False) + season_note):
             st.markdown(sp_tag, unsafe_allow_html=True)
-            if s_hist["animals_calf"].sum() <= 0:
+            if s_season["animals_calf"].sum() <= 0:
                 st.caption("No calves have been recorded here yet.")
             else:
-                tc_ = d.typical_calves(s_hist, s_all["ts"].min(), now)
+                tc_ = d.typical_calves(s_season, s_all["ts"].min(), now)
                 best = tc_.loc[tc_["Calves"].idxmax(), "Month"]
                 calf_who = "" if all_species_picked else f"{sp_label.lower()} "
                 st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>Most {html.escape(calf_who)}"
@@ -1100,8 +1123,9 @@ else:
     Humphrey["species_list"] = f"No species spotted {place} yet for this period."
 if not sp_rank.empty:
     best_txt = f" They show up most in {months_txt}." if len(top3) else ""
-    Humphrey["season"] = f"Want to see {sp_plural.lower()}?{best_txt}"
-    Humphrey["curve"] = (f"The dark line is {ss.get('curve_year', now.year)}, the dotted line is the average of "
+    Humphrey["season"] = f"Want to see {sp_plural.lower()} in {season_short}?{best_txt}"
+    Humphrey["curve"] = (f"This is {str(ss.get('curve_region') or 'the world').split(',')[0]}. "
+                         f"The dark line is {ss.get('curve_year', now.year)}, the dotted line is the average of "
                        f"all other years. Above the dots means a busier month than usual!")
 if not grp.empty:
     Humphrey["group"] = (f"{plural(grp.iloc[-1]['Species'])} travel in the biggest groups, about "
@@ -1124,12 +1148,13 @@ try:
         pk = d.peak_month_by_year(sd, data_start, data_end)
         if len(pk):
             p0 = pk.iloc[0]
-            Humphrey["shift"] = (f"In {str(p0['Year']).split(' ')[0]}, {sp_plural.lower()} were busiest in {p0['Busiest month']}, "
+            Humphrey["shift"] = (f"In {str(p0['Year']).split(' ')[0]}, {sp_plural.lower()} in {season_short} were busiest in {p0['Busiest month']}, "
                                f"with {int(p0['Sightings that month']):,} sightings that month.")
-    if s_hist["animals_calf"].sum() > 0:
-        tcv = d.typical_calves(s_hist, s_all["ts"].min(), now)
+    if s_season["animals_calf"].sum() > 0:
+        tcv = d.typical_calves(s_season, s_all["ts"].min(), now)
         calf_who = "" if all_species_picked else f"{sp_label.lower()} "
-        Humphrey["calf"] = f"Most {calf_who}calves are spotted in {tcv.loc[tcv['Calves'].idxmax(), 'Month']}."
+        Humphrey["calf"] = (f"In {season_short}, most {calf_who}calves are spotted in "
+                            f"{tcv.loc[tcv['Calves'].idxmax(), 'Month']}.")
 except Exception:
     pass   # keep the general messages set above
 
