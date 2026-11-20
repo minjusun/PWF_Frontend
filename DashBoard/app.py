@@ -93,8 +93,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .brand-logo {height:42px; width:auto; display:block;}
 .brand-divider {width:1px; height:30px; background:rgba(255,255,255,0.35);}
 .brand-logo, .brand-divider {flex-shrink:0;}
-/* Whale & Dolphin Tracker logo on the right end of the header */
-.brand-logo-right {height:42px; width:auto; display:block; flex-shrink:0; margin-left:auto; padding-left:24px;}
+/* Whale & Dolphin Tracker logo, right next to the Pacific Whale Foundation logo */
+.brand-logo-right {height:42px; width:auto; display:block; flex-shrink:0;}
 .summary {color:#C9DAE7; font-size:0.92rem; line-height:1.4; white-space:nowrap; overflow:hidden;
           text-overflow:ellipsis; min-width:0;}
 .summary b {color:#FFFFFF; font-weight:700;}
@@ -240,7 +240,7 @@ def sparkline(series, color=TEAL, h=40, axes=False, x=None, y=None):
     return fig
 
 
-def logo_html():
+def logo_html(divider=True):
     """Logo from logo.svg or logo.png next to this file (white version suits the dark header)."""
     here = os.path.dirname(os.path.abspath(__file__))
     for name, mime in (("logo.svg", "image/svg+xml"), ("logo.png", "image/png")):
@@ -249,7 +249,7 @@ def logo_html():
             with open(path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
             return (f"<img class='brand-logo' src='data:{mime};base64,{b64}' alt='Pacific Whale Foundation'>"
-                    "<span class='brand-divider'></span>")
+                    + ("<span class='brand-divider'></span>" if divider else ""))
     return ""
 
 
@@ -644,8 +644,9 @@ else:
              f"First sighting <b>{first.strftime('%b %Y') if pd.notna(first) else '—'}</b>"]
 summary = "<span class='summary-dot'>·</span>".join(parts)
 tooltip = esc(re.sub(r"<[^>]+>", "", " · ".join(parts)))   # plain text shown on hover
-brand_slot.markdown(f"<div class='brand'>{logo_html()}<div class='summary' title='{tooltip}'>"
-                    f"{summary}</div>{wdt_logo_html()}</div>", unsafe_allow_html=True)
+brand_slot.markdown(f"<div class='brand'>{logo_html(divider=False)}{wdt_logo_html()}"
+                    f"<span class='brand-divider'></span><div class='summary' title='{tooltip}'>"
+                    f"{summary}</div></div>", unsafe_allow_html=True)
 
 
 # ── KPI strip ────────────────────────────────────────────────────────────────
