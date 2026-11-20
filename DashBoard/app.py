@@ -90,7 +90,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .st-key-header [data-baseweb="select"] div, .st-key-header [data-baseweb="select"] input,
 .st-key-header [data-baseweb="select"] svg {color: #FFFFFF !important; fill: #FFFFFF !important;}
 [data-testid="stToolbar"] button, [data-testid="stToolbar"] a, [data-testid="stToolbar"] span {color: #E6EEF3 !important;}
-.brand-logo {height:42px; width:auto; display:block;}
+.brand-logo-right {height:42px; width:auto; display:block; flex-shrink:0;
+                   position:relative; top:3px; left:0px;}
 .brand-divider {width:1px; height:30px; background:rgba(255,255,255,0.35);}
 .brand-logo, .brand-divider {flex-shrink:0;}
 /* Whale & Dolphin Tracker logo, right next to the Pacific Whale Foundation logo */
