@@ -7,7 +7,6 @@ import html
 import json
 import os
 import re
-import zlib
 
 import folium
 import numpy as np
@@ -170,18 +169,12 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 /* "Species: ..." tag on the charts that follow the header Species filter */
 .sp-tag {color:#8AA0A8; font-size:0.74rem; line-height:1.4; margin:0 0 8px;}
 .sp-tag b {font-weight:500; color:#6B848D;}
-/* Top contributors: two fixed tables (All time / Past year) */
-[class*="st-key-card_contrib_"] .card-title {text-align:center; font-weight:400; font-size:1.1rem; color:#3E4F57;}
+/* Top 5 contributors (past year): boat name + sightings */
 .ctab {width:100%; border-collapse:collapse; font-size:0.86rem; color:#12303B;}
-.ctab th {text-align:left; font-weight:500; padding:8px 10px 14px; border-bottom:1px solid #E3E9EC;}
-.ctab td {padding:9px 10px; border-bottom:1px solid #E3E9EC; vertical-align:middle;}
+.ctab th {text-align:left; font-weight:500; color:#5B7680; padding:6px 8px 8px; border-bottom:1px solid #E3E9EC;}
+.ctab td {padding:7px 8px; border-bottom:1px solid #E3E9EC;}
 .ctab tr:last-child td {border-bottom:none;}
-.ctab th.num, .ctab td.num {text-align:right; width:90px;}
-.ctab td.rk {width:48px; color:#3E4F57;}
-.ctab .usr {display:flex; align-items:center; gap:12px;}
-.ctab .av {width:34px; height:34px; border-radius:4px; flex-shrink:0; display:flex; align-items:center;
-           justify-content:center; color:#FFFFFF; font-weight:600; font-size:0.95rem;}
-.ctab .nm {color:#1B7F8C;}
+.ctab th.num, .ctab td.num {text-align:right;}
 /* disclaimer at the bottom center of the page */
 .disclaimer {color:#C9DAE7; font-size:0.9rem; line-height:1.5; text-align:center;
              margin:40px auto 10px; max-width:900px; font-style:italic;}
@@ -659,10 +652,26 @@ with kpi_row:
 
 
 # ── Left of map: top 5 contributors (red bars) + active users ────────────────
+def top_boats_past_year(n=5):
+    """Fixed table: the boats with the most sightings in the last 12 months (ignores every filter)."""
+    recent = s_all[s_all["ts"] >= now - pd.DateOffset(years=1)]
+    boats = recent["boat_name"].astype("string").str.strip()
+    recent = recent[boats.notna() & (boats != "")]
+    return (recent.assign(boat=boats).groupby("boat").size()
+            .sort_values(ascending=False).head(n))
+
+
+tb = top_boats_past_year()
 with left:
+    with card("contrib", "Top 5 Contributors (Past Year)"):
+        rows = "".join(f"<tr><td>{html.escape(str(b))}</td><td class='num'>{int(n):,}</td></tr>"
+                       for b, n in tb.items()) or "<tr><td colspan='2'>No sightings in the past year.</td></tr>"
+        st.markdown("<table class='ctab'><thead><tr><th>Boat</th><th class='num'>Sightings</th></tr></thead>"
+                    f"<tbody>{rows}</tbody></table>", unsafe_allow_html=True)
+
     with card("kpi_users"):
         st.metric("Active users", f"{cur['users']:,}", delta("users"))
-        st.plotly_chart(sparkline(ms["users"], h=395, axes=True, x="Month", y="Users"),
+        st.plotly_chart(sparkline(ms["users"], h=135, axes=True, x="Month", y="Users"),
                         config=PLOT_CFG, theme=None, key="spark_users")
 
 
@@ -686,41 +695,6 @@ with right:
 # QUOTE 2!!!!--------------------------------------------------------------------
 st.markdown("<div class='quote quote-on-blue quote-spaced'><p style='font-size: 28px;'><i>&ldquo;By working together, we can track whales and dolphins throughout their ocean home!&rdquo;</i></p></div>",
             unsafe_allow_html=True)
-
-# ── Top contributors: fixed tables, not affected by any filter ──────────────
-def top_contributors_static(s_, t_, n=10):
-    sg = s_.groupby("contributor").size().rename("Sightings")
-    tr = t_.groupby("contributor")["track_id"].nunique().rename("Trips")
-    out = pd.concat([sg, tr], axis=1).fillna(0).astype(int)
-    out = out[out.index.notna() & (out.index.astype(str).str.strip() != "")]
-    return out.sort_values(["Sightings", "Trips"], ascending=False).head(n)
-
-
-def contributors_html(df):
-    rows = []
-    for i, (name, r) in enumerate(df.iterrows(), 1):
-        name = str(name)
-        hue = zlib.crc32(name.encode()) % 360                    # same colour for the same person every time
-        initial = html.escape((name.strip()[:1] or "?").upper())
-        rows.append(f"<tr><td class='rk'>{i}</td><td><div class='usr'>"
-                    f"<span class='av' style='background:hsl({hue},45%,42%)'>{initial}</span>"
-                    f"<span class='nm'>{html.escape(name)}</span></div></td>"
-                    f"<td class='num'>{int(r['Sightings']):,}</td><td class='num'>{int(r['Trips']):,}</td></tr>")
-    body = "".join(rows) or "<tr><td colspan='4'>No sightings yet.</td></tr>"
-    return ("<table class='ctab'><thead><tr><th>Rank</th><th>User</th><th class='num'>Sightings</th>"
-            f"<th class='num'>Trips</th></tr></thead><tbody>{body}</tbody></table>")
-
-
-year_ago = now - pd.DateOffset(years=1)
-tc_all = top_contributors_static(s_all, t_all)
-tc_year = top_contributors_static(s_all[s_all["ts"] >= year_ago], t_all[t_all["ts"] >= year_ago])
-c_all, c_year_tab = st.columns(2)
-with c_all:
-    with card("contrib_all", "Top Contributors (All Time)"):
-        st.markdown(contributors_html(tc_all), unsafe_allow_html=True)
-with c_year_tab:
-    with card("contrib_year", "Top Contributors (Past Year)"):
-        st.markdown(contributors_html(tc_year), unsafe_allow_html=True)
 
 # ── Row line 1: activity over time + best time to see ────────────────────────
 sp_rank = s_hist["species_name"].value_counts()
@@ -928,10 +902,9 @@ Humphrey = {
     "shift": "This shows the busiest month for the species you picked, year by year.",
     "calf": "Calves are baby whales and dolphins! This shows when the most are spotted.",
 }
-for key, tab, when in (("contrib_all", tc_all, "of all time"), ("contrib_year", tc_year, "this past year")):
-    Humphrey[key] = (f"These are our top spotters {when}. {tab.index[0]} leads with "
-                     f"{int(tab.iloc[0]['Sightings']):,} sightings!" if len(tab)
-                     else "No one has logged sightings yet. Be the first!")
+Humphrey["contrib"] = (f"These boats logged the most sightings this past year. {tb.index[0]} leads with "
+                       f"{int(tb.iloc[0]):,} sightings!" if len(tb)
+                       else "No boats have logged sightings this past year yet.")
 if len(sp_tab):
     Humphrey["species_list"] = (f"These are the 5 most-spotted species {place} in the Whale and Dolphin Tracker app. "
                               f"The most common is the {sp_tab.iloc[0]['Species'].lower()}.")
