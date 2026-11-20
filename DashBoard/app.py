@@ -103,7 +103,7 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 /* "About" on the right end of the header line; hover (or tab to it) to see the story */
 .st-key-header [data-testid="stElementContainer"], .st-key-header [data-testid="stMarkdown"],
 .st-key-header [data-testid="stMarkdownContainer"] {overflow:visible !important;}
-.about {position:relative; margin-left:auto; flex-shrink:0; padding:4px 2px; cursor:default;
+.about {position:relative; margin-left:auto; margin-right:-30px; flex-shrink:0; padding:4px 2px; cursor:default;
         color:#C9DAE7; font-size:0.92rem; font-weight:600; letter-spacing:0.02em; outline:none;}
 .about:hover, .about:focus-within {color:#FFFFFF;}
 .about-pop {position:absolute; right:0; top:calc(100% + 12px); width:380px; z-index:1000;
