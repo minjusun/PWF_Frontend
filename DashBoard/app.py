@@ -19,7 +19,7 @@ from streamlit_folium import st_folium
 import data as d
 import whale_regions as R   # region boundaries (named so it can't clash with other "regions" modules)
 
-st.set_page_config(page_title="Whale & Dolphin Tracker Dashboard", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Whale & Dolphin Tracker Dashboard", layout="wide", initial_sidebar_state="collapsed")
 
 GLOBAL = "Global"
 DEEP, TEAL, SEAFOAM, MIST, SAND, CORAL = "#0E4D64", "#1B7F8C", "#4FB0A5", "#9FD3C7", "#E0A458", "#C8553D"
@@ -31,7 +31,7 @@ PLOT_CFG = {"displayModeBar": False}
 st.markdown("""
 <style>
 html {font-size: 14px;}
-.block-container, [data-testid="stMainBlockContainer"] {padding: calc(104px + 40px) 4.5rem 2rem; max-width: 100%;}
+.block-container, [data-testid="stMainBlockContainer"] {padding: calc(104px + 40px) 4.5rem 2rem calc(300px + 3rem); max-width: 100%;}
 [data-testid="stVerticalBlock"] {gap: 0.55rem;}
 [class*="st-key-card"] {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:10px; padding:14px 16px 14px;}
 [class*="st-key-card"] [data-testid="stVerticalBlock"] {gap: 0.5rem;}
@@ -49,19 +49,17 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .snap span {display:block; color:#5B7680; font-size:0.72rem;}
 .snap b {display:block; color:#0E4D64; font-size:1.05rem; font-weight:600; line-height:1.25;
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-/* Left sidebar: "Encounter Search" panel */
-[data-testid="stSidebar"] {top:104px !important; height:calc(100vh - 104px) !important;
-                           background:#FFFFFF; border-right:1px solid #DCE7EA;
-                           min-width:300px !important; max-width:300px !important;}
-[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {padding:0.6rem 1.1rem 1.5rem;}
-[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {gap:0.6rem;}
-[data-testid="stSidebar"] [data-baseweb="select"] > div {background:#FFFFFF !important;
-                                                         border:1px solid #C9D3D7 !important;}
-/* Sidebar is always open: no collapse / expand arrows, and undo a collapse from an older session */
-[data-testid="stSidebarCollapseButton"], [data-testid="stSidebarCollapsedControl"],
-[data-testid="stExpandSidebarButton"], [data-testid="stSidebarHeader"] {display:none !important;}
-[data-testid="stSidebar"][aria-expanded="false"] {transform:none !important; margin-left:0 !important;
-                                                  visibility:visible !important;}
+/* Left panel: "Encounter Search". It's our own fixed container rather than Streamlit's sidebar,
+   so it always sits under the blue header and can't be collapsed. */
+[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"],
+[data-testid="stExpandSidebarButton"] {display:none !important;}
+.st-key-sidepanel {position:fixed !important; top:104px; left:0; bottom:0; width:300px !important;
+                   z-index:900; overflow-y:auto; box-sizing:border-box; padding:16px 18px 24px;
+                   background:#FFFFFF; border-right:1px solid #DCE7EA;
+                   box-shadow:4px 0 16px rgba(6,26,48,0.10);}
+.st-key-sidepanel [data-testid="stVerticalBlock"] {gap:0.6rem;}
+.st-key-sidepanel [data-baseweb="select"] > div {background:#FFFFFF !important;
+                                                 border:1px solid #C9D3D7 !important;}
 .sb-title {font-size:1.2rem; color:#3E4F57; text-align:center; font-weight:500; margin:0 0 4px;}
 .sb-tabline {height:2px; background:#1B7F8C; width:55%; margin:0 0 6px;}
 .sb-legend {font-size:0.85rem; color:#0E4D64; font-weight:600; margin:0 0 2px;}
@@ -433,7 +431,7 @@ if "pending_region" in ss:                      # set by a map click on the prev
     picked = ss.pop("pending_region")
     set_location(None if picked == GLOBAL else picked)
 
-with st.sidebar:
+with st.container(key="sidepanel"):
     st.markdown("<div class='sb-title'>Encounter Search</div><div class='sb-tabline'></div>",
                 unsafe_allow_html=True)
     st.multiselect("Species", SPECIES_OPTS, key="sb_species", placeholder="Species",
