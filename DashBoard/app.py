@@ -93,6 +93,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .brand-logo {height:42px; width:auto; display:block;}
 .brand-divider {width:1px; height:30px; background:rgba(255,255,255,0.35);}
 .brand-logo, .brand-divider {flex-shrink:0;}
+/* Whale & Dolphin Tracker logo on the right end of the header */
+.brand-logo-right {height:42px; width:auto; display:block; flex-shrink:0; margin-left:auto; padding-left:24px;}
 .summary {color:#C9DAE7; font-size:0.92rem; line-height:1.4; white-space:nowrap; overflow:hidden;
           text-overflow:ellipsis; min-width:0;}
 .summary b {color:#FFFFFF; font-weight:700;}
@@ -248,6 +250,18 @@ def logo_html():
                 b64 = base64.b64encode(f.read()).decode()
             return (f"<img class='brand-logo' src='data:{mime};base64,{b64}' alt='Pacific Whale Foundation'>"
                     "<span class='brand-divider'></span>")
+    return ""
+
+
+def wdt_logo_html():
+    """Whale & Dolphin Tracker logo from WDTlogo.png next to this file; empty if missing."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for name in ("WDTlogo.png", "WDTLogo.png", "wdtlogo.png", "WDTlogo.PNG"):
+        path = os.path.join(here, name)
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode()
+            return f"<img class='brand-logo-right' src='data:image/png;base64,{b64}' alt='Whale and Dolphin Tracker'>"
     return ""
 
 
@@ -631,7 +645,7 @@ else:
 summary = "<span class='summary-dot'>·</span>".join(parts)
 tooltip = esc(re.sub(r"<[^>]+>", "", " · ".join(parts)))   # plain text shown on hover
 brand_slot.markdown(f"<div class='brand'>{logo_html()}<div class='summary' title='{tooltip}'>"
-                    f"{summary}</div></div>", unsafe_allow_html=True)
+                    f"{summary}</div>{wdt_logo_html()}</div>", unsafe_allow_html=True)
 
 
 # ── KPI strip ────────────────────────────────────────────────────────────────
