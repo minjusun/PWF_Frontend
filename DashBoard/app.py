@@ -171,6 +171,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .sp-tag b {font-weight:500; color:#6B848D;}
 /* The four charts in the two rows under the quote: same card height, so each row lines up */
 .st-key-card_activity, .st-key-card_season, .st-key-card_curve, .st-key-card_group {min-height:320px;}
+/* The three cards under the arrow: same height */
+.st-key-card_hot, .st-key-card_shift, .st-key-card_calf {min-height:316px;}
 /* Top 5 contributors and Top 5 species: same height */
 .st-key-card_contrib, .st-key-card_species_list {min-height:258px;}
 /* Top 5 contributors (past year): rank + boat name + sightings */
@@ -889,7 +891,7 @@ if ss.get("show_more"):
                              category_orders={"Month": d.MONTHS})
                 fig.update_traces(hovertemplate="%{x}: about %{y:.0f} calves in a typical year<extra></extra>")
                 fig.update_xaxes(tickangle=0, tickfont=dict(size=10, color="#0B2233"))
-                st.plotly_chart(style(fig, h=170, x="Month", y="Calves (typical month)"), config=PLOT_CFG, theme=None, key="calf_chart")
+                st.plotly_chart(style(fig, h=220, x="Month", y="Calves (typical month)"), config=PLOT_CFG, theme=None, key="calf_chart")
 
 # ── Disclaimer at the bottom of the page ─────────────────────────────────────
 st.markdown("<div class='disclaimer'>This presents opportunistic data collected by community scientists "
