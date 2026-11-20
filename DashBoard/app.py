@@ -19,7 +19,11 @@ from streamlit_folium import st_folium
 import data as d
 import whale_regions as R   # region boundaries (named so it can't clash with other "regions" modules)
 
-st.set_page_config(page_title="Whale & Dolphin Tracker Dashboard", layout="wide", initial_sidebar_state="collapsed")
+# The sidebar's Description search looks in general_notes, which data.py doesn't pull out by default.
+if "general_notes" not in d.VD_TEXT:
+    d.VD_TEXT.append("general_notes")
+
+st.set_page_config(page_title="Whale & Dolphin Tracker Dashboard", layout="wide", initial_sidebar_state="expanded")
 
 GLOBAL = "Global"
 DEEP, TEAL, SEAFOAM, MIST, SAND, CORAL = "#0E4D64", "#1B7F8C", "#4FB0A5", "#9FD3C7", "#E0A458", "#C8553D"
@@ -49,7 +53,18 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .snap span {display:block; color:#5B7680; font-size:0.72rem;}
 .snap b {display:block; color:#0E4D64; font-size:1.05rem; font-weight:600; line-height:1.25;
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"] {display:none;}
+/* Left sidebar: "Encounter Search" panel */
+[data-testid="stSidebar"] {background:#FFFFFF; border-right:1px solid #DCE7EA;
+                           min-width:300px !important; max-width:300px !important;}
+[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {padding:0.6rem 1.1rem 1.5rem;}
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {gap:0.6rem;}
+[data-testid="stSidebar"] [data-baseweb="select"] > div {background:#FFFFFF !important;
+                                                         border:1px solid #C9D3D7 !important;}
+.sb-title {font-size:1.2rem; color:#3E4F57; text-align:center; font-weight:500; margin:0 0 4px;}
+.sb-tabline {height:2px; background:#1B7F8C; width:55%; margin:0 0 6px;}
+.sb-legend {font-size:0.85rem; color:#0E4D64; font-weight:600; margin:0 0 2px;}
+.st-key-sb_date_box, .st-key-sb_loc_box {border:1px solid #DCE7EA; border-radius:8px; padding:8px 12px 12px;}
+.st-key-sb_reset button {color:#C8553D !important;}
 /* Page background: one smooth gradient, light blue at the top to dark navy at the bottom */
 [data-testid="stApp"] {background: #06142C;}   /* matches the bottom colour, so the page end blends in */
 .block-container, [data-testid="stMainBlockContainer"] {
@@ -62,8 +77,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .brand {display:flex; align-items:center; gap:14px; flex-wrap:nowrap; padding:0 0 4px; min-width:0;}
 /* Header bar: full width, flush with the top and sides, dark blue */
 .st-key-header {background: linear-gradient(180deg, #1E5F8F 0%, #12446F 45%, #0B3358 100%);
-                width: 100vw !important; max-width: 100vw; box-sizing: border-box;
-                position: relative; left: 50%; margin-left: -50vw !important;
+                width: auto !important; max-width: none; box-sizing: border-box;
+                margin-left: -4.5rem !important; margin-right: -4.5rem !important;
                 margin-top: -3.8rem; margin-bottom: 48px;
                 padding: 2.2rem 4.5rem 26px; border-radius: 0;
                 box-shadow: 0 6px 20px rgba(6,26,48,0.25);}
@@ -152,13 +167,6 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 /* "Species: ..." tag on the charts that follow the header Species filter */
 .sp-tag {color:#8AA0A8; font-size:0.74rem; line-height:1.4; margin:0 0 8px;}
 .sp-tag b {font-weight:500; color:#6B848D;}
-/* Start screen: pick species, time range and location before the dashboard appears */
-.st-key-start_box {background:#FFFFFF; border:1px solid #DCE7EA; border-radius:14px; padding:26px 28px 22px;
-                   margin-top:30px; box-shadow:0 10px 30px rgba(6,26,48,0.18);}
-.st-key-start_box [data-testid="stVerticalBlock"] {gap:0.8rem;}
-.start-title {font-size:1.3rem; font-weight:700; color:#0E4D64; margin:0 0 4px;}
-.start-sub {font-size:0.85rem; color:#5B7680; line-height:1.45; margin:0 0 6px;}
-.st-key-start_box [data-testid="stWidgetLabel"] p {font-weight:600; color:#12303B;}
 /* disclaimer at the bottom center of the page */
 .disclaimer {color:#C9DAE7; font-size:0.9rem; line-height:1.5; text-align:center;
              margin:40px auto 10px; max-width:900px; font-style:italic;}
@@ -295,6 +303,15 @@ def split_humpbacks(s):
     return s
 
 
+def ocean_of(lat, lon):
+    """Rough ocean name for each position."""
+    lat, lon = np.asarray(lat, float), np.asarray(lon, float)
+    pac = in_pacific(lat, lon) | ((lon >= 100) & (lon < 120) & (lat >= -8))   # incl. South China Sea
+    indian = (lon > 20) & (lat < 31) & ((lon < 100) | ((lat < -8) & (lon < 147)))
+    return np.select([lat <= -60, lat >= 66, pac, indian],
+                     ["Southern Ocean", "Arctic Ocean", "Pacific Ocean", "Indian Ocean"], "Atlantic Ocean")
+
+
 def plural(name):
     """d.plural, but keeps a bracketed population on the end: 'Humpback Whales (North Pacific)'."""
     m = re.match(r"^(.*?)\s*(\([^)]*\))$", str(name))
@@ -365,6 +382,7 @@ def load(source: str):
     cells["region"] = R.assign(cells["lat"], cells["lon"], regions)
     s = s.assign(_la=s["lat"].round(2), _lo=s["lon"].round(2)).merge(
         cells.rename(columns={"lat": "_la", "lon": "_lo"}), on=["_la", "_lo"], how="left").drop(columns=["_la", "_lo"])
+    s["ocean"] = ocean_of(s["lat"], s["lon"])
     used = set(s["region"])
     return s, t, [r for r in regions if r["name"] in used], err
 
@@ -373,76 +391,153 @@ s_all, t_all, region_shapes, boundary_err = load(data_source())
 shape_by_name = {r["name"]: r for r in region_shapes}
 now = pd.Timestamp.now()
 ss = st.session_state
-ss.setdefault("region_pick", GLOBAL)
-if "pending_region" in ss:                      # set by a map click on the previous run
-    ss.region_pick = ss.pop("pending_region")
+
+PERIOD_OPTS = ["Last 12 months", *[str(y) for y in sorted(s_all["year"].unique(), reverse=True)], "All time"]
+SPECIES_OPTS = s_all["species_name"].value_counts().index.tolist()
+REGION_OPTS = [r for r in s_all["region"].value_counts().index if r != R.OPEN_OCEAN]
+if R.OPEN_OCEAN in set(s_all["region"]):
+    REGION_OPTS.append(R.OPEN_OCEAN)
+REGION_COUNTS_ALL = s_all["region"].value_counts()
+OCEAN_OPTS = s_all["ocean"].value_counts().index.tolist()
+DATE_MODES = ["On", "Before", "After", "Between", "Preset"]
+LOC_MODES = ["Whole world", "Region", "Ocean"]
+DATA_MIN = s_all["ts"].min().date()
+TODAY = now.date()
+
+# Sidebar widgets (sb_*) can be changed freely; the dashboard only uses the "applied" copy,
+# which is updated when Search is pressed (or by a map click / Reset).
+DEFAULTS = {"sb_species": [], "sb_desc": "", "sb_date_mode": "Preset", "sb_date": TODAY,
+            "sb_range": (max(DATA_MIN, TODAY - pd.Timedelta(days=30).to_pytimedelta()), TODAY),
+            "sb_preset": PERIOD_OPTS[0], "sb_loc_mode": "Whole world",
+            "sb_region": REGION_OPTS[0] if REGION_OPTS else None,
+            "sb_ocean": OCEAN_OPTS[0] if OCEAN_OPTS else None}
+for k, v in DEFAULTS.items():
+    ss.setdefault(k, v)
+ss.setdefault("applied", {k: (list(v) if isinstance(v, list) else v) for k, v in DEFAULTS.items()})
+
+
+def apply_search():
+    ss.applied = {k: ss.get(k, DEFAULTS[k]) for k in DEFAULTS}
+
+
+def reset_search():
+    for k, v in DEFAULTS.items():
+        ss[k] = list(v) if isinstance(v, list) else v
+    apply_search()
+
+
+def set_location(region=None):
+    """Used by map clicks and the map's Whole world button: changes the location and applies it."""
+    if region is None:
+        ss.sb_loc_mode = "Whole world"
+    else:
+        ss.sb_loc_mode, ss.sb_region = "Region", region
+    ss.applied = {**ss.applied, "sb_loc_mode": ss.sb_loc_mode, "sb_region": ss.sb_region}
 
 
 def go_global():
-    ss.region_pick = GLOBAL
+    set_location(None)
 
 
-# ── Start screen: ask for species, time range and location first ─────────────
-PERIOD_OPTS = ["Last 12 months", *[str(y) for y in sorted(s_all["year"].unique(), reverse=True)], "All time"]
-SPECIES_OPTS = s_all["species_name"].value_counts().index.tolist()
-REGION_OPTS = [GLOBAL] + [r for r in s_all["region"].value_counts().index if r != R.OPEN_OCEAN]
-if R.OPEN_OCEAN in set(s_all["region"]):
-    REGION_OPTS.append(R.OPEN_OCEAN)
+if "pending_region" in ss:                      # set by a map click on the previous run
+    picked = ss.pop("pending_region")
+    set_location(None if picked == GLOBAL else picked)
 
+with st.sidebar:
+    st.markdown("<div class='sb-title'>Encounter Search</div><div class='sb-tabline'></div>",
+                unsafe_allow_html=True)
+    st.multiselect("Species", SPECIES_OPTS, key="sb_species", placeholder="Species",
+                   label_visibility="collapsed")
+    st.text_input("Description", key="sb_desc", placeholder="Description", label_visibility="collapsed",
+                  help="Finds sightings whose notes contain these words.")
+    with st.container(key="sb_date_box"):
+        st.markdown("<div class='sb-legend'>Date</div>", unsafe_allow_html=True)
+        st.radio("Date", DATE_MODES, key="sb_date_mode", horizontal=True, label_visibility="collapsed")
+        mode = ss.sb_date_mode
+        if mode == "Preset":
+            st.selectbox("Preset", PERIOD_OPTS, key="sb_preset", label_visibility="collapsed")
+        elif mode == "Between":
+            st.date_input("Dates", key="sb_range", min_value=DATA_MIN, max_value=TODAY,
+                          format="MM/DD/YYYY", label_visibility="collapsed")
+        else:
+            st.date_input("Date", key="sb_date", min_value=DATA_MIN, max_value=TODAY,
+                          format="MM/DD/YYYY", label_visibility="collapsed")
+    with st.container(key="sb_loc_box"):
+        st.markdown("<div class='sb-legend'>Location</div>", unsafe_allow_html=True)
+        st.radio("Location", LOC_MODES, key="sb_loc_mode", label_visibility="collapsed")
+        st.selectbox("Region", REGION_OPTS, key="sb_region", label_visibility="collapsed",
+                     disabled=ss.sb_loc_mode != "Region", placeholder="Location e.g. California",
+                     format_func=lambda r: f"{r}  ({int(REGION_COUNTS_ALL.get(r, 0)):,})")
+        st.selectbox("Ocean", OCEAN_OPTS, key="sb_ocean", label_visibility="collapsed",
+                     disabled=ss.sb_loc_mode != "Ocean", placeholder="Ocean")
+    b1, b2 = st.columns(2)
+    b1.button("Reset", key="sb_reset", on_click=reset_search, use_container_width=True)
+    b2.button("Search", key="sb_search", on_click=apply_search, use_container_width=True)
 
-def start_dashboard():
-    """Copy the start-screen picks into the header filters and the map's region picker."""
-    ss.species_pick = list(ss.get("start_species", []))
-    ss.period_pick = ss.get("start_period", PERIOD_OPTS[0])
-    ss.region_pick = ss.get("start_region", GLOBAL)
-    ss.started = True
-
-
-if not ss.get("started"):
-    top = st.container(key="header")
-    top.markdown(f"<div class='brand'>{logo_html()}<div class='summary'>"
-                 "<b>Whale &amp; Dolphin Tracker Dashboard</b></div></div>", unsafe_allow_html=True)
-    _, mid, _ = st.columns([1, 1.6, 1])
-    with mid:
-        with st.container(key="start_box"):
-            st.markdown("<div class='start-title'>What would you like to explore?</div>"
-                        "<div class='start-sub'>Choose a species, a time range and a location. "
-                        "You can change them any time from the bar at the top.</div>", unsafe_allow_html=True)
-            st.multiselect("Species", SPECIES_OPTS, key="start_species",
-                           placeholder="All species (leave empty to include every species)")
-            st.selectbox("Time range", PERIOD_OPTS, key="start_period")
-            st.selectbox("Location", REGION_OPTS, key="start_region",
-                         format_func=lambda r: "Global, all regions" if r == GLOBAL else r)
-            st.button("Show dashboard", type="primary", on_click=start_dashboard, use_container_width=True)
-    st.stop()                                   # nothing else is drawn until they press the button
+A = ss.applied
 
 
 # ── Header: title + filters ──────────────────────────────────────────────────
 header_box = st.container(key="header")
-h1, h2, h3, h4 = header_box.columns([5.6, 1.3, 2.2, 1.6], vertical_alignment="center")
+h1, h4 = header_box.columns([9.1, 1.6], vertical_alignment="center")
 with h1:
     brand_slot = st.empty()
-window = h2.selectbox("Period", PERIOD_OPTS, key="period_pick")
-sp_filter = h3.multiselect("Species", SPECIES_OPTS, key="species_pick", placeholder="All species")
 who = h4.selectbox("Contributor", ["Everyone", *s_all["contributor"].value_counts().index.tolist()])
+sp_filter = list(A["sb_species"])
 
-if window == "Last 12 months":
-    start, end = (now - pd.DateOffset(years=1)).normalize(), now
-    prev = (start - pd.DateOffset(years=1), start)
-elif window == "All time":
-    start, end, prev = s_all["ts"].min().normalize(), now + pd.Timedelta(days=1), None
+# Date range from the sidebar
+day = pd.Timedelta(days=1)
+data_min_ts, tomorrow = s_all["ts"].min().normalize(), now.normalize() + day
+fmt = lambda x: pd.Timestamp(x).strftime("%b %d, %Y").replace(" 0", " ")
+mode = A["sb_date_mode"]
+if mode == "Preset":
+    window = A["sb_preset"]
+    if window == "Last 12 months":
+        start, end = (now - pd.DateOffset(years=1)).normalize(), now
+        prev = (start - pd.DateOffset(years=1), start)
+    elif window == "All time":
+        start, end, prev = data_min_ts, tomorrow, None
+    else:
+        y = int(window)
+        start, end = pd.Timestamp(y, 1, 1), pd.Timestamp(y + 1, 1, 1)
+        prev = (pd.Timestamp(y - 1, 1, 1), start)
 else:
-    y = int(window)
-    start, end = pd.Timestamp(y, 1, 1), pd.Timestamp(y + 1, 1, 1)
-    prev = (pd.Timestamp(y - 1, 1, 1), start)
+    if mode == "Between":
+        rng = A["sb_range"] if isinstance(A["sb_range"], (list, tuple)) else (A["sb_range"],)
+        a_ = pd.Timestamp(rng[0]); b_ = pd.Timestamp(rng[-1])
+        start, end, window = a_, b_ + day, f"{fmt(a_)} to {fmt(b_)}"
+    else:
+        d0 = pd.Timestamp(A["sb_date"])
+        if mode == "On":
+            start, end, window = d0, d0 + day, f"On {fmt(d0)}"
+        elif mode == "Before":
+            start, end, window = data_min_ts, d0, f"Before {fmt(d0)}"
+        else:   # After
+            start, end, window = d0 + day, tomorrow, f"After {fmt(d0)}"
+    length = end - start
+    prev = None if mode == "Before" or length <= pd.Timedelta(0) else (start - length, start)
 hist_start, hist_end = s_all["ts"].min(), now + pd.Timedelta(days=1)
 
-s, t = s_all, t_all
+# Location from the sidebar
+ocean_sel = A["sb_ocean"] if A["sb_loc_mode"] == "Ocean" else None
+region_sel = A["sb_region"] if A["sb_loc_mode"] == "Region" and A["sb_region"] in REGION_OPTS else None
+
+
+def narrow(df):
+    """Description and Ocean filters, shared by every view."""
+    if A["sb_desc"].strip() and "general_notes" in df.columns:
+        df = df[df["general_notes"].fillna("").str.contains(A["sb_desc"].strip(), case=False, regex=False)]
+    if ocean_sel:
+        df = df[df["ocean"] == ocean_sel]
+    return df
+
+
+s, t = narrow(s_all), t_all
 if sp_filter:
     s = s[s["species_name"].isin(sp_filter)]
 if who != "Everyone":
     s, t = s[s["contributor"] == who], t[t["contributor"] == who]
-follow = bool(sp_filter)
+follow = bool(sp_filter) or bool(A['sb_desc'].strip()) or bool(ocean_sel)
 s_period, t_period = d.slice_data(s, t, start, end, tracks_follow_sightings=follow)
 region_counts = s_period["region"].value_counts()
 
@@ -452,15 +547,10 @@ left, center, right = st.columns([3, 4, 3])
 # ── Center: region search + choropleth map ───────────────────────────────────
 with center:
     with card("map"):
-        options = REGION_OPTS
-        if ss.region_pick not in options:
-            ss.region_pick = GLOBAL
-        c1, c2 = st.columns([5, 1.3], vertical_alignment="bottom")
-        c1.selectbox("Region", options, key="region_pick", label_visibility="collapsed",
-                     format_func=lambda r: "Global, all regions" if r == GLOBAL
-                     else f"{r}  ({int(region_counts.get(r, 0)):,})")
-        c2.button("Global", on_click=go_global, disabled=ss.region_pick == GLOBAL, use_container_width=True)
-        region_sel = None if ss.region_pick == GLOBAL else ss.region_pick
+        c1, c2 = st.columns([5, 1.3], vertical_alignment="center")
+        c1.markdown(f"<div class='card-title'>{html.escape(region_sel or ocean_sel or 'Whole world')}</div>",
+                    unsafe_allow_html=True)
+        c2.button("Whole world", on_click=go_global, disabled=region_sel is None, use_container_width=True)
 
         m = folium.Map(location=[20, -100], zoom_start=2, tiles=None, world_copy_jump=True, min_zoom=2,
                        control_scale=True)
@@ -497,8 +587,8 @@ with center:
             ss.last_click = (map_key, clicked)
             ss.pending_region = GLOBAL if clicked == region_sel else clicked
             st.rerun()
-        st.markdown("<div class='card-sub' style='padding-bottom:6px'>Click a region, or search above, to see its "
-                    "stats. Click it again or press Global to go back.</div>", unsafe_allow_html=True)
+        st.markdown("<div class='card-sub' style='padding-bottom:6px'>Click a region, or pick one in the sidebar, to see its "
+                    "stats. Click it again or press Whole world to go back.</div>", unsafe_allow_html=True)
         if boundary_err:
             st.caption("Couldn't download region boundaries, so 1° squares are shown instead.")
 
@@ -512,7 +602,8 @@ s_hist_all = d.slice_data(s, t, hist_start, hist_end)[0]
 
 # Same region + contributor, but ignoring the Species filter. Used for "how many different species"
 # counts, which would otherwise just show 1 (or 2...) every month when species are filtered.
-s_nosp = s_all if who == "Everyone" else s_all[s_all["contributor"] == who]
+s_nosp = narrow(s_all)
+s_nosp = s_nosp if who == "Everyone" else s_nosp[s_nosp["contributor"] == who]
 t_nosp = t_all if who == "Everyone" else t_all[t_all["contributor"] == who]
 s_nosp_reg = s_nosp if is_global else s_nosp[s_nosp["region"] == region_sel]
 s_hist_nosp, t_hist_nosp = d.slice_data(s_nosp_reg, t_nosp, hist_start, hist_end,
@@ -526,6 +617,8 @@ def scope_text(main, period=False):
     bits = [main]
     if not is_global:
         bits.append(short_name)
+    elif ocean_sel:
+        bits.append(ocean_sel)
     if who != "Everyone":
         bits.append(who)
     if period:
@@ -537,7 +630,7 @@ rc = region_counts.drop(R.OPEN_OCEAN, errors="ignore")
 esc = html.escape
 if is_global:
     top_r = rc.index[0].split(",")[0] if len(rc) else "—"
-    parts = ["<b>Global</b>",
+    parts = [f"<b>{esc(ocean_sel or 'Global')}</b>",
              f"<b>{len(rc):,}</b> regions with sightings",
              f"Top region <b>{esc(top_r)}</b>",
              f"<b>{t_period['track_id'].nunique():,}</b> total trips",
@@ -814,7 +907,7 @@ st.markdown("<div class='disclaimer'>This presents opportunistic data collected 
 
 
 # ── Humphrey's facts: what he says when you click each card ────────────────────
-place = "around the world" if is_global else f"in {short_name}"
+place = (f"in the {ocean_sel}" if ocean_sel else "around the world") if is_global else f"in {short_name}"
 Humphrey = {
     "kpi_users": f"{cur['users']:,} people logged trips or sightings {place} this period!",
     "kpi_animals": f"{cur['animals']:,} animals counted {place}!",
