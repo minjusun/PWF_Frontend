@@ -193,9 +193,10 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .st-key-card_activity, .st-key-card_season, .st-key-card_curve, .st-key-card_group {min-height:320px;}
 /* The three cards under the arrow: same height */
 .st-key-card_hot, .st-key-card_shift, .st-key-card_calf {min-height:316px;}
-/* Top 5 Species table is static: always sorted by sightings, no header sorting, no ⋮ menu or toolbar */
-.st-key-card_species_list [data-testid="stDataFrame"] {pointer-events:none;}
-.st-key-card_species_list [data-testid="stElementToolbar"] {display:none !important;}
+/* Top 5 Species table: plain HTML (always sorted by sightings, no menus), scrolls sideways if narrow */
+.sptab-wrap {overflow-x:auto; border:1px solid #E3E9EC; border-radius:8px;}
+.sptab-wrap .xtab td, .sptab-wrap .xtab th {padding:6px 10px;}
+.spark {display:block;}
 /* Static tables under the arrow: scroll inside, header stays put, only the Year order can change */
 .xtab-wrap {overflow-y:auto; border:1px solid #E3E9EC; border-radius:8px;}
 .xtab {width:100%; border-collapse:collapse; font-size:0.84rem; color:#12303B;}
@@ -204,6 +205,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .xtab td {padding:7px 10px; border-bottom:1px solid #EEF2F4; white-space:nowrap;}
 .xtab tr:last-child td {border-bottom:none;}
 .xtab th.num, .xtab td.num {text-align:right;}
+.xtab th.year-sort {cursor:pointer; user-select:none;}
+.xtab th.year-sort:hover {color:#0E4D64;}
 .xtab .bar {display:inline-block; vertical-align:middle; width:60px; height:6px; border-radius:3px;
             background:#E3EEF0; margin-right:8px; overflow:hidden;}
 .xtab .bar i {display:block; height:100%; background:#1B7F8C;}
@@ -791,17 +794,51 @@ with left:
                         config=PLOT_CFG, theme=None, key="spark_users")
 
 
+def sparkline_svg(values, w=96, h=22):
+    """Tiny filled line chart for the Trend column."""
+    v = [float(x) for x in (values if values is not None else []) if pd.notna(x)]
+    if len(v) < 2:
+        return ""
+    top = max(v) or 1.0
+    pts = [(i * w / (len(v) - 1), h - 2 - (x / top) * (h - 4)) for i, x in enumerate(v)]
+    line = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    return (f"<svg class='spark' width='{w}' height='{h}' viewBox='0 0 {w} {h}'>"
+            f"<polygon points='0,{h} {line} {w},{h}' fill='rgba(79,176,165,0.25)'/>"
+            f"<polyline points='{line}' fill='none' stroke='{TEAL}' stroke-width='1.5'/></svg>")
+
+
+def species_table_html(df):
+    """Top 5 species as a plain table: bar + count for Sightings, a sparkline for Trend."""
+    if df.empty:
+        return "<div class='card-sub'>No species spotted for this period.</div>"
+    top = max(1, int(df["Sightings"].max())) if "Sightings" in df.columns else 1
+    names = {"Trend": "Trend (per month)"}
+    head = "".join(f"<th>{html.escape(names.get(c, str(c)))}</th>" for c in df.columns)
+    rows = []
+    for _, r in df.iterrows():
+        cells = []
+        for c in df.columns:
+            v = r[c]
+            if c == "Sightings":
+                cells.append(f"<td><span class='bar' style='width:90px'><i style='width:{100 * int(v) / top:.0f}%'></i>"
+                             f"</span>{int(v):,}</td>")
+            elif c == "Trend":
+                cells.append(f"<td>{sparkline_svg(v)}</td>")
+            elif isinstance(v, (list, tuple, np.ndarray)):
+                cells.append(f"<td>{sparkline_svg(v)}</td>")
+            else:
+                cells.append(f"<td>{'' if v is None or (not isinstance(v, str) and pd.isna(v)) else html.escape(str(v))}</td>")
+        rows.append("<tr>" + "".join(cells) + "</tr>")
+    return (f"<div class='sptab-wrap'><table class='xtab'><thead><tr>{head}</tr></thead>"
+            f"<tbody>{''.join(rows)}</tbody></table></div>")
+
+
 # ── Right of map: species spotted (red bars) + image placeholder ─────────────
 with right:
     with card("species_list", "Top 5 Species Spotted"):
         sp_all = d.species_table(s_scope, start, end)      # every species, most-sighted first
         sp_tab = sp_all.head(5)
-        st.dataframe(sp_tab, hide_index=True, height=181, row_height=29, column_config={   # same size as Top 5 contributors
-            "Sightings": st.column_config.ProgressColumn(
-                format="%d", max_value=int(max(1, sp_tab["Sightings"].max() if len(sp_tab) else 1))),
-            "Trend": st.column_config.AreaChartColumn("Trend (per month)", y_min=0, help="Sightings per month across the selected period"),
-            "Last seen": st.column_config.TextColumn("Last seen", width="small"),
-        })
+        st.markdown(species_table_html(sp_tab), unsafe_allow_html=True)
 
     st.markdown(f"{side_image_html()}"
                 "<div class='permit'>Research activities authorized under NMFS/MMPA ESA permit # 21321</div>",
@@ -955,22 +992,18 @@ with c_group:
                             theme=None, key="group_size")
 
 # ── Static tables (used under the arrow) ─────────────────────────────────────
-YEAR_ORDER = ["Newest first", "Oldest first"]
-
-
-def year_sorted(df, key):
-    """Sort a table by its Year column ("2026" or "2026 (partial)") in the order picked in `key`."""
-    yr = pd.to_numeric(df["Year"].astype(str).str.extract(r"(\d{4})")[0], errors="coerce")
-    newest = (ss.get(key) or YEAR_ORDER[0]) == YEAR_ORDER[0]
-    return df.assign(_y=yr).sort_values("_y", ascending=not newest, kind="stable").drop(columns="_y")
-
-
-def static_table(df, hide=(), pct=(), height=230, newest=True):
-    """A plain HTML table: no sorting, no menus. Numbers right-aligned; `pct` columns as % with a bar."""
+def static_table(df, hide=(), pct=(), height=230):
+    """A plain HTML table: no menus. Click the Year header to flip between newest and oldest first."""
     df = df.drop(columns=[c for c in hide if c in df.columns])
+    yr = (pd.to_numeric(df["Year"].astype(str).str.extract(r"(\d{4})")[0], errors="coerce")
+          if "Year" in df.columns else pd.Series(0, index=df.index))
+    df = df.assign(_y=yr).sort_values("_y", ascending=False, kind="stable")        # newest first to start
+    years = df.pop("_y")
     is_num = {c: pd.api.types.is_numeric_dtype(df[c]) and c != "Year" and c not in pct for c in df.columns}
-    head = "".join(f"<th class='{'num' if is_num[c] else ''}'>{html.escape(str(c))}"
-                   f"{(' ↓' if newest else ' ↑') if c == 'Year' else ''}</th>" for c in df.columns)
+    head = "".join(
+        (f"<th class='year-sort' title='Click to change the order'>Year <span class='arrow'>↓</span></th>"
+         if c == "Year" else f"<th class='{'num' if is_num[c] else ''}'>{html.escape(str(c))}</th>")
+        for c in df.columns)
 
     def cell(c, v):
         if pd.isna(v):
@@ -985,16 +1018,12 @@ def static_table(df, hide=(), pct=(), height=230, newest=True):
             return f"<td class='num'>{txt}</td>"
         return f"<td>{html.escape(str(v))}</td>"
 
-    body = "".join("<tr>" + "".join(cell(c, r[c]) for c in df.columns) + "</tr>" for _, r in df.iterrows())
+    body = "".join(f"<tr data-y='{0 if pd.isna(y) else int(y)}'>" + "".join(cell(c, r[c]) for c in df.columns) + "</tr>"
+                   for (_, r), y in zip(df.iterrows(), years))
     if not body:
         body = f"<tr><td colspan='{len(df.columns)}'>No data yet.</td></tr>"
     return (f"<div class='xtab-wrap' style='max-height:{height}px'><table class='xtab'>"
             f"<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>")
-
-
-def year_order_control(key):
-    st.segmented_control("Year order", YEAR_ORDER, default=YEAR_ORDER[0], key=key, label_visibility="collapsed")
-    return (ss.get(key) or YEAR_ORDER[0]) == YEAR_ORDER[0]
 
 
 # ── More charts (hidden until the button is pressed) ─────────────────────────
@@ -1011,16 +1040,12 @@ if ss.get("show_more"):
     with c_hot:
         if is_global:
             with card("hot", "Busiest region by year", scope_text("All years")):
-                newest = year_order_control("hot_order")
-                st.markdown(static_table(year_sorted(d.busiest_region_by_year(s_hist), "hot_order"),
-                                         hide=("Share of year",), height=212, newest=newest),
+                st.markdown(static_table(d.busiest_region_by_year(s_hist), hide=("Share of year",), height=249),
                             unsafe_allow_html=True)
         else:
             with card("hot", f"{short_name} vs. Global", scope_text("All years")):
-                newest = year_order_control("hot_order")
-                st.markdown(static_table(year_sorted(d.region_rank_by_year(s_hist_all, region_sel), "hot_order"),
-                                         pct=("Share of global",), height=212, newest=newest),
-                            unsafe_allow_html=True)
+                st.markdown(static_table(d.region_rank_by_year(s_hist_all, region_sel), pct=("Share of global",),
+                                         height=249), unsafe_allow_html=True)
 
     with c_peak:
         with card("shift", "Busiest month each year", scope_text("All years")):
@@ -1028,10 +1053,8 @@ if ss.get("show_more"):
             if sp_rank.empty:
                 st.caption("No sightings here yet.")
             else:
-                newest = year_order_control("shift_order")
-                st.markdown(static_table(year_sorted(d.peak_month_by_year(sd, data_start, data_end), "shift_order"),
-                                         hide=("Sightings that year",), height=186, newest=newest),
-                            unsafe_allow_html=True)
+                st.markdown(static_table(d.peak_month_by_year(sd, data_start, data_end),
+                                         hide=("Sightings that year",), height=230), unsafe_allow_html=True)
 
     with c_calf:
         with card("calf", "Calves by month", scope_text("Calves in a typical month")):
@@ -1403,6 +1426,21 @@ components.html("""
       }
     }
   });
+  // Static tables: clicking the Year header flips the rows between newest-first and oldest-first
+  if (window.parent.__yearSortHandler) doc.removeEventListener("click", window.parent.__yearSortHandler, true);
+  window.parent.__yearSortHandler = (e) => {
+    const th = e.target.closest && e.target.closest("th.year-sort");
+    if (!th) return;
+    const tbody = th.closest("table").querySelector("tbody");
+    const rows = Array.from(tbody.querySelectorAll("tr[data-y]"));
+    const asc = th.dataset.order !== "asc";            // next order
+    rows.sort((a, b) => asc ? a.dataset.y - b.dataset.y : b.dataset.y - a.dataset.y);
+    rows.forEach((r) => tbody.appendChild(r));
+    th.dataset.order = asc ? "asc" : "desc";
+    const arrow = th.querySelector(".arrow");
+    if (arrow) arrow.textContent = asc ? "↑" : "↓";
+  };
+  doc.addEventListener("click", window.parent.__yearSortHandler, true);
   observer.observe(doc.body, { childList: true, subtree: true });
   window.parent.__menuTrimObserver = observer;
 })();
