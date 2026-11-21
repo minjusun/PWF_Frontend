@@ -40,7 +40,9 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
   body { font: 15px/1.55 "Open Sans", "Helvetica Neue", Arial, sans-serif; }
-  h1, h2, .num { font-family: "Anton", Impact, "Arial Narrow", sans-serif; font-weight: 400; letter-spacing: .01em; }
+  .num { font-family: "Anton", Impact, "Arial Narrow", sans-serif; font-weight: 400; letter-spacing: .01em; }
+  /* Titles: the same regular font as the text */
+  h1, h2 { font-family: "Open Sans", "Helvetica Neue", Arial, sans-serif; font-weight: 400; letter-spacing: 0; }
 
   .page { max-width: 1100px; margin: 0 auto; padding: 32px 20px 40px; }
   .page > h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.05; margin: 0 0 6px; }
@@ -288,7 +290,7 @@
       const label = (r, i) => {
         if (!byYear) return monthLabel(r.period);
         if (i % every !== 0 && i !== rows.length - 1) return '';
-        return rows.length > 6 ? '’' + r.period.slice(2) : r.period;
+        return r.period;
       };
       const title = (r, total) => `${byYear ? r.period : monthLong(r.period)}: ${fmt(total)} animals (` +
         GROUPS.map(g => `${g.label} ${fmt(r[g.key])}`).join(', ') + ')';
@@ -305,6 +307,37 @@
     draw('year');
   }
 
+  // Same species groups as the stats server: whales, dolphins & porpoises, and unknown; no debris, seals or sharks
+  function countsAsWhaleOrDolphin(p) {
+    const code = String(p.species_code || '').trim().toUpperCase();
+    const name = String(p.species_name || '').trim().toLowerCase();
+    if (code === 'OTH' || name === 'unknown' || name === 'unidentified') return true;
+    if (name.includes('debris') || name.includes('shark') || name.includes('seal')) return false;
+    return name.includes('whale') || name.includes('dolphin') || name.includes('porpoise');
+  }
+
+  // Top 5 boats from /api/points.geojson (the map's sightings, which include boat_name)
+  async function boatLeaders() {
+    const res = await fetch('/api/points.geojson');
+    if (!res.ok) throw new Error(res.status);
+    const gj = await res.json();
+    const boats = new Map();
+    for (const f of gj.features || []) {
+      const p = f.properties || {};
+      const boat = String(p.boat_name || '').trim();
+      if (!boat || !countsAsWhaleOrDolphin(p)) continue;
+      const b = boats.get(boat) || { name: boat, sightings: 0, animals: 0, species: new Set() };
+      b.sightings += 1;
+      b.animals += Number(p.animals_total) || 0;
+      if (p.species_code) b.species.add(p.species_code);
+      boats.set(boat, b);
+    }
+    return [...boats.values()]
+      .sort((a, b) => b.sightings - a.sightings || b.animals - a.animals)
+      .slice(0, 5)
+      .map(b => ({ name: b.name, sightings: b.sightings, animals: b.animals, species: b.species.size }));
+  }
+
   function renderContributors(list) {
     if (!list.length) { setBody('contributors', '<p class="status">No sightings yet.</p>'); return; }
     const max = Math.max(...list.map(c => c.sightings), 1);
@@ -314,9 +347,9 @@
         <span class="who">${esc(c.name)}</span>
         <span class="count">${fmt(c.sightings)} sightings</span>
         <span class="meter"><i style="width:${(c.sightings / max * 100).toFixed(1)}%"></i></span>
-        <span class="sub">${fmt(c.animals)} animals, ${fmt(c.species)} species, ${fmt(c.trips)} trips</span>
+        <span class="sub">${fmt(c.animals)} animals, ${fmt(c.species)} species</span>
       </li>`).join('')}</ol>
-      <p class="note">Ranked by whale and dolphin sightings logged.</p>`);
+      <p class="note">Boats ranked by whale and dolphin sightings logged.</p>`);
   }
 
   function showError(retrying) {
@@ -335,7 +368,10 @@
       }
       renderActiveUsers(data.active_users);
       renderSightings(data.sightings);
-      renderContributors(data.contributors);
+      if (document.getElementById('contributors')) {
+        boatLeaders().then(renderContributors).catch(() =>
+          setBody('contributors', '<p class="status">Couldn’t load the boats. Reload the page to try again.</p>'));
+      }
       const when = new Date(data.updated);
       document.getElementById('updated').textContent =
         'Last updated ' + when.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
