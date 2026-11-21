@@ -115,6 +115,15 @@
   .meter i { display: block; height: 100%; background: var(--accent); }
   .sub { grid-column: 2 / 4; color: var(--muted); font-size: 13px; }
 
+  /* Hover tooltip on bars (Active users) */
+  .tip { position: fixed; z-index: 10; pointer-events: none; white-space: nowrap;
+         background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+         padding: 5px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.15);
+         opacity: 0; transition: opacity .12s; }
+  .tip.show { opacity: 1; }
+  .tip b { font-weight: 600; }
+  .bars .col[data-tip] { cursor: default; }
+  .bars .col[data-tip]:hover .stack { filter: brightness(0.9); }
   .status { color: var(--muted); padding: 24px 0; }
   .updated { color: var(--muted); font-size: 13px; margin-top: 22px; }
   button:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
@@ -193,7 +202,7 @@
   const tickText = v => v >= 10000 ? compact.format(v) : fmt(v);
 
   // Bar chart with a labeled y-axis. Each column is a stack of colored pieces.
-  function barsHtml(rows, keys, labelOf, titleOf, yTitle, xTitle) {
+  function barsHtml(rows, keys, labelOf, titleOf, yTitle, xTitle, useTip) {
     const totals = rows.map(r => keys.reduce((t, k) => t + (r[k.key] || 0), 0));
     const { top, step } = niceScale(Math.max(...totals, 0));
     const ticks = [];
@@ -205,7 +214,7 @@
       <div class="area">
         ${ticks.slice(1).map(v => `<div class="grid" style="bottom:${pct(v)}"></div>`).join('')}
         <div class="bars">${rows.map((r, i) => `
-          <div class="col" title="${titleOf(r, totals[i])}">
+          <div class="col" ${useTip ? 'data-tip' : 'title'}="${titleOf(r, totals[i])}">
             <div class="stack" style="height:${pct(totals[i])}">
               ${keys.map(k => r[k.key] ? `<i style="flex:${r[k.key]};background:var(${k.color})"></i>` : '').join('')}
             </div>
@@ -225,20 +234,29 @@
   }
 
   function renderActiveUsers(a) {
-    const months = a.monthly;
-    const thisMonth = months[months.length - 1];
+    const thisMonth = a.monthly[a.monthly.length - 1];
     const monthName = p => monthLong(p).split(' ')[0];
+    // January to December of the current year. The last-12-months data always covers every month
+    // of this year so far; months still to come are shown as empty bars.
+    const year = thisMonth.period.slice(0, 4);
+    const byPeriod = Object.fromEntries(a.monthly.map(r => [r.period, r]));
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const period = `${year}-${String(i + 1).padStart(2, '0')}`;
+      const r = byPeriod[period];
+      return r ? r : { period, users: 0, future: period > thisMonth.period };
+    });
     const bars = barsHtml(months, [{ key: 'users', color: '--accent' }],
       r => monthLabel(r.period),
-      r => `${monthLong(r.period)}: ${fmt(r.users)} active users`,
-      'Active users', 'Month');
+      r => r.future ? `${monthLong(r.period)}: no data yet`
+                    : `${monthLong(r.period)}: ${fmt(r.users)} active user${r.users === 1 ? '' : 's'}`,
+      'Active users', 'Month', true);
     setBody('active-users', `
       <div class="headline"><span class="num">${fmt(thisMonth.users)}</span>
         <span class="label">active so far in ${monthName(thisMonth.period)}</span></div>
       <div class="facts">
         <div><strong>${fmt(a.all_time)}</strong>contributors all time</div>
       </div>
-      <div class="chart" role="img" aria-label="Active users per month, last 12 months">${bars}</div>
+      <div class="chart" role="img" aria-label="Active users per month, January to December ${year}">${bars}</div>
       <p class="note">Active means they logged at least one trip or sighting that month.</p>`);
   }
 
@@ -327,6 +345,24 @@
       else showError(false);
     }
   }
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  document.body.appendChild(tip);
+  function placeTip(e, col) {
+    tip.textContent = col.dataset.tip;
+    tip.classList.add('show');
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = e.clientX - w / 2, y = e.clientY - h - 12;
+    x = Math.max(4, Math.min(x, innerWidth - w - 4));
+    if (y < 4) y = e.clientY + 16;
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  }
+  document.addEventListener('pointermove', e => {
+    const col = e.target.closest && e.target.closest('.col[data-tip]');
+    if (col) placeTip(e, col); else tip.classList.remove('show');
+  });
+  document.addEventListener('pointerleave', () => tip.classList.remove('show'));
+
   load();
 })();
 </script>
