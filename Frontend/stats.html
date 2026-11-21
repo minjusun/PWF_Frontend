@@ -3,98 +3,150 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Whale &amp; Dolphin Tracker stats</title>
-<!--
-  Each view is a copy of a card on the Streamlit dashboard (app.py):
-    /stats/active-users   "Active users"                    number, "vs prev." badge, monthly chart
-    /stats/sightings      "Animals counted"                 number, "vs prev." badge, monthly chart
-    /stats/contributors   "Top 5 Contributors (Past Year)"  Rank, Boat, Sightings
-    /stats                all three
-  The single views fill the iframe they're placed in. Add ?theme=dark for a navy card.
-  Numbers come from the "dashboard" block of the stats data (dashboard_stats.py), which map_api.py
-  puts in window.__STATS__; otherwise they're fetched from /api/stats.json.
--->
+<title>Whale & dolphin sightings stats</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
-<!-- Plotly's small "basic" build (line charts only): same chart engine as the dashboard -->
-<script src="https://cdn.plot.ly/plotly-basic-2.35.2.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  /* Colours and sizes copied from the dashboard */
+  /* White and light blue by default; add ?theme=dark for the map's navy */
   :root {
-    --bg: transparent; --card: #FFFFFF; --border: #DCE7EA; --line: #E3E9EC;
-    --title: #12303B; --label: #5B7680; --value: #0E4D64; --tick: #0B2233;
-    --grid: #EAF1F3; --axis: #DCE7EA; --teal: #1B7F8C; --fill: rgba(79,176,165,0.18);
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --line: #e1ecf4;
+    --axis: #b9c9d8;
+    --text: #0b2236;
+    --muted: #5b6f82;
+    --accent: #a5ddf7;
+    --accent-ink: #2a87b8;
+    --whales: #a5ddf7;
+    --dolphins: #4a9fd0;
+    --unknown: #d3dde6;
     color-scheme: light;
   }
   :root[data-theme="dark"] {
-    --bg: #020714; --card: #0A1428; --border: #1C2A45; --line: #1C2A45;
-    --title: #FFFFFF; --label: #9FB0C8; --value: #A5DDF7; --tick: #C9DAE7;
-    --grid: #1C2A45; --axis: #3A4C6D; --teal: #4FB8A8; --fill: rgba(79,184,168,0.22);
+    --bg: #020714;
+    --panel: #0a1428;
+    --line: #1c2a45;
+    --axis: #3a4c6d;
+    --text: #ffffff;
+    --muted: #9fb0c8;
+    --accent: #a5ddf7;
+    --accent-ink: #a5ddf7;
+    --whales: #a5ddf7;
+    --dolphins: #4fb8a8;
+    --unknown: #7d8aa3;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
-  html { font-size: 14px; }
-  html, body { margin: 0; background: var(--bg); color: var(--title); }
-  body { font-family: "Source Sans 3", "Source Sans Pro", -apple-system, "Segoe UI", sans-serif; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font: 15px/1.55 "Open Sans", "Helvetica Neue", Arial, sans-serif; }
+  h1, h2, .num { font-family: "Anton", Impact, "Arial Narrow", sans-serif; font-weight: 400; letter-spacing: .01em; }
 
-  .page { max-width: 1400px; margin: 0 auto; padding: 24px 20px 30px; }
-  .page > h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 4px; }
-  .page > .intro { color: var(--label); margin: 0 0 20px; max-width: 62ch; }
-  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-  .updated { color: var(--label); font-size: 0.82rem; margin-top: 16px; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 32px 20px 40px; }
+  .page > h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.05; margin: 0 0 6px; }
+  .page > .intro { color: var(--muted); margin: 0 0 28px; max-width: 62ch; }
+  .grid { display: grid; gap: 20px; grid-template-columns: 1fr 1fr; }
+  .grid #sightings { grid-column: 1 / -1; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
 
-  /* Cards: same as [class*="st-key-card"] in app.py */
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-          padding: 14px 16px 14px; min-width: 0; display: flex; flex-direction: column; }
-  .card.kpi { padding: 12px 16px 10px; }
-  .card-title { font-size: 0.92rem; font-weight: 600; color: var(--title); padding: 0 0 10px; }
-  .metric-label { font-size: 0.76rem; color: var(--label); margin: 0 0 4px; }
-  .metric-value { font-size: 1.4rem; color: var(--value); line-height: 1.2; }
-  .delta-slot { display: flex; }
-  .metric-delta { align-self: flex-start; display: inline-flex; gap: 4px; margin-top: 6px; padding: 1px 7px;
-                  border-radius: 999px; font-size: 0.72rem; }
-  .metric-delta.up { color: rgb(9,171,59); background: rgba(9,171,59,0.1); }
-  .metric-delta.down { color: rgb(255,43,43); background: rgba(255,43,43,0.1); }
-  .chart { width: 100%; height: 135px; margin-top: 8px; }
-  /* Location picker (Animals counted): looks like the dashboard's dropdowns */
-  .kpi-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-  .loc { font: inherit; font-size: 0.82rem; color: var(--title); max-width: 60%; min-width: 0;
-         padding: 5px 28px 5px 10px; border-radius: 8px; border: 1px solid rgba(11,37,64,0.14);
-         background: rgba(42,120,174,0.12) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%235B7680'/></svg>") no-repeat right 10px center;
-         appearance: none; -webkit-appearance: none; cursor: pointer; text-overflow: ellipsis; }
-  .loc:hover { background-color: rgba(42,120,174,0.2); }
-  .loc:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
-  :root[data-theme="dark"] .loc { border-color: var(--border); background-color: rgba(165,221,247,0.08); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px 22px 18px; min-width: 0; }
+  .panel h2 { font-size: 24px; line-height: 1.1; margin: 0 0 14px; }
+  .note { color: var(--muted); font-size: 13px; margin: 12px 0 0; }
 
-  /* Top 5 contributors: same as .ctab in app.py */
-  .ctab { width: 100%; border-collapse: collapse; font-size: 0.86rem; color: var(--title); }
-  .ctab th { text-align: left; font-weight: 500; color: var(--label); padding: 6px 8px 8px; border-bottom: 1px solid var(--line); }
-  .ctab td { padding: 7px 8px; border-bottom: 1px solid var(--line); }
-  .ctab tr:last-child td { border-bottom: none; }
-  .ctab th.num, .ctab td.num { text-align: right; }
-  .ctab th.rk, .ctab td.rk { width: 42px; color: var(--label); }
-  .status { color: var(--label); font-size: 0.86rem; padding: 8px 0; }
-
-  /* Single-chart embeds fill the iframe: the card takes the whole box, the chart takes what's left */
+  /* Single-chart embeds fill the iframe with no page chrome */
   body.embed .page { padding: 0; max-width: none; }
   body.embed .page > h1, body.embed .page > .intro, body.embed .updated { display: none; }
+  body.embed .grid { display: block; }
+  /* Each chart fits whatever box the iframe gives it (a square works well) */
   html:has(body.embed), body.embed { height: 100%; overflow: hidden; }
   body.embed .page, body.embed .grid { height: 100%; }
-  body.embed .grid { display: block; }
-  body.embed .card { height: 100%; border-radius: 0; border: 0; }
-  body.embed .chart { flex: 1 1 0; height: auto; min-height: 110px; }
+  body.embed .panel { border-radius: 0; border: 0; height: 100%; display: flex; flex-direction: column;
+                      padding: clamp(14px, 4vmin, 22px); }
+  body.embed .panel h2 { font-size: clamp(19px, 6vmin, 26px); margin-bottom: clamp(8px, 2.5vmin, 14px); }
+  body.embed .chart, body.embed #sightings .chart { flex: 1 1 0; height: auto; min-height: 110px; overflow: hidden; }
+  body.embed .headline .num { font-size: clamp(36px, 13vmin, 60px); }
+  body.embed .facts { margin: clamp(6px, 2vmin, 12px) 0 clamp(8px, 3vmin, 16px); }
+  body.embed .note { margin-top: 8px; font-size: 12px; }
+  body.embed ol.leaders { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: space-between; }
+  body.embed ol.leaders li { padding: clamp(5px, 1.6vmin, 11px) 0; }
+  body.embed .status { flex: 1; }
+
+  /* Active users */
+  .headline { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .headline .num { font-size: 56px; line-height: 1; color: var(--accent-ink); }
+  .headline .label { color: var(--muted); }
+  .facts { display: flex; gap: 28px; margin: 12px 0 16px; flex-wrap: wrap; }
+  .facts div { color: var(--muted); font-size: 13px; }
+  .facts strong { display: block; color: var(--text); font-size: 18px; font-weight: 600; }
+  .chart { height: 170px; }
+  #sightings .chart { height: 240px; }
+
+  /* Sightings */
+  .bar-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .totals { color: var(--muted); margin: -6px 0 14px; }
+  .totals strong { color: var(--text); font-weight: 600; }
+  /* Plain HTML bar chart with a y-axis, gridlines and x labels (nothing extra to download) */
+  .plot { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr auto auto; height: 100%; min-height: 0; column-gap: 6px; }
+  .plot .ytitle { grid-column: 1 / 3; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .plot .yaxis { position: relative; min-width: 24px; }
+  .plot .yaxis span { position: absolute; right: 0; transform: translateY(50%); font-size: 11px; color: var(--muted); line-height: 1; white-space: nowrap; }
+  .plot .area { position: relative; border-left: 1px solid var(--axis); border-bottom: 1px solid var(--axis); min-height: 0; }
+  .plot .grid { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--line); }
+  .bars { position: absolute; inset: 0 2px 0 3px; display: flex; align-items: flex-end; gap: 3px; }
+  .bars .col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; }
+  .bars .stack { width: 100%; display: flex; flex-direction: column-reverse; border-radius: 2px 2px 0 0; overflow: hidden; }
+  .bars .stack i { display: block; }
+  .plot .xlabels { grid-column: 2; display: flex; gap: 3px; padding: 0 2px 0 3px; margin-top: 4px; }
+  .plot .xlabels span { flex: 1 1 0; min-width: 0; text-align: center; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: visible; }
+  .plot .xtitle { grid-column: 2; text-align: center; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .chart { display: flex; flex-direction: column; }
+  .legend { display: flex; gap: 6px 18px; flex-wrap: wrap; margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 7px; background: var(--c); vertical-align: -1px; }
+  .legend b { color: var(--text); font-weight: 600; }
+
+  /* Contributors */
+  ol.leaders { list-style: none; margin: 0; padding: 0; counter-reset: rank; }
+  ol.leaders li { counter-increment: rank; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 4px 12px; padding: 11px 0; border-top: 1px solid var(--line); }
+  ol.leaders li:first-child { border-top: 0; padding-top: 2px; }
+  ol.leaders li::before { content: counter(rank); font-family: "Anton", Impact, sans-serif; font-size: 26px; line-height: 1; color: var(--accent-ink); grid-row: span 2; }
+  .who { font-weight: 600; overflow-wrap: anywhere; }
+  .count { font-weight: 600; text-align: right; white-space: nowrap; }
+  .meter { grid-column: 2 / 4; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--accent); }
+  .sub { grid-column: 2 / 4; color: var(--muted); font-size: 13px; }
+
+  .status { color: var(--muted); padding: 24px 0; }
+  .updated { color: var(--muted); font-size: 13px; margin-top: 22px; }
+  button:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+  .toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; flex: none; }
+  .toggle button { font: inherit; font-size: 13px; color: var(--muted); background: none; border: 0; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  .toggle button[aria-pressed="true"] { background: var(--accent); color: var(--text); font-weight: 600; }
+  .bar-head { display: flex; justify-content: space-between; align-items: center; gap: 10px 16px; flex-wrap: wrap; margin: -4px 0 12px; }
+  .bar-head .totals { margin: 0; }
 </style>
 </head>
 <body>
 <main class="page">
-  <h1>Whale &amp; Dolphin Tracker</h1>
+  <h1>Whale and dolphin sightings</h1>
   <p class="intro">Live numbers from sightings recorded by our community of whale watchers. Updated every hour.</p>
+
   <div class="grid">
-    <section class="card kpi" id="active-users" aria-label="Active users"><div class="status">Loading…</div></section>
-    <section class="card kpi" id="sightings" aria-label="Animals counted"><div class="status">Loading…</div></section>
-    <section class="card" id="contributors" aria-label="Top 5 contributors"><div class="status">Loading…</div></section>
+    <section class="panel" id="active-users" aria-labelledby="au-title">
+      <h2 id="au-title">Active users</h2>
+      <div class="status">Loading…</div>
+    </section>
+
+    <section class="panel" id="contributors" aria-labelledby="tc-title">
+      <h2 id="tc-title">Top 5 contributors worldwide</h2>
+      <div class="status">Loading…</div>
+    </section>
+
+    <section class="panel" id="sightings" aria-labelledby="sg-title">
+      <h2 id="sg-title">Animals counted</h2>
+      <div class="status">Loading…</div>
+    </section>
   </div>
+
   <p class="updated" id="updated"></p>
 </main>
 
@@ -103,7 +155,7 @@
   const params = new URLSearchParams(location.search);
   if (params.get('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
 
-  // /stats/active-users, /stats/sightings or /stats/contributors show just that card
+  // /stats/active-users, /stats/sightings or /stats/contributors show just that panel
   const VIEWS = ['active-users', 'sightings', 'contributors'];
   const view = VIEWS.find(v => location.pathname.replace(/\/+$/, '').endsWith('/stats/' + v));
   if (view) {
@@ -112,106 +164,167 @@
   }
 
   const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  const fmt = n => Number(n || 0).toLocaleString('en-US');
-  const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const FONT = '-apple-system, Segoe UI, Inter, sans-serif';
+  const fmt = n => Number(n).toLocaleString('en-US');
+  const GROUPS = [
+    { key: 'Whales', label: 'Whales', color: '--whales' },
+    { key: 'Dolphins', label: 'Dolphins & porpoises', color: '--dolphins' },
+    { key: 'Unknown', label: 'Unknown', color: '--unknown' },
+  ];
+  const monthLabel = p => {
+    const [y, m] = p.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+  };
+  const monthLong = p => {
+    const [y, m] = p.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  };
+
+  // A round top for the y-axis (e.g. 37 -> 40, 1,830 -> 2,000) with 4 even steps.
+  function niceScale(max) {
+    if (max <= 0) return { top: 4, step: 1 };
+    const raw = max / 4;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(st => st >= raw);
+    const s = Math.max(1, step);
+    const st = max < 4 ? 1 : s;                       // small counts: whole numbers only
+    return { top: Math.ceil(max / st) * st, step: st };
+  }
+  const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+  const tickText = v => v >= 10000 ? compact.format(v) : fmt(v);
+
+  // Bar chart with a labeled y-axis. Each column is a stack of colored pieces.
+  function barsHtml(rows, keys, labelOf, titleOf, yTitle, xTitle) {
+    const totals = rows.map(r => keys.reduce((t, k) => t + (r[k.key] || 0), 0));
+    const { top, step } = niceScale(Math.max(...totals, 0));
+    const ticks = [];
+    for (let v = 0; v <= top + step / 2; v += step) ticks.push(v);
+    const pct = v => (v / top * 100).toFixed(2) + '%';
+    return `<div class="plot">
+      <div class="ytitle">${yTitle}</div>
+      <div class="yaxis" aria-hidden="true">${ticks.map(v => `<span style="bottom:${pct(v)}">${tickText(v)}</span>`).join('')}</div>
+      <div class="area">
+        ${ticks.slice(1).map(v => `<div class="grid" style="bottom:${pct(v)}"></div>`).join('')}
+        <div class="bars">${rows.map((r, i) => `
+          <div class="col" title="${titleOf(r, totals[i])}">
+            <div class="stack" style="height:${pct(totals[i])}">
+              ${keys.map(k => r[k.key] ? `<i style="flex:${r[k.key]};background:var(${k.color})"></i>` : '').join('')}
+            </div>
+          </div>`).join('')}</div>
+      </div>
+      <div class="xlabels" aria-hidden="true">${rows.map((r, i) => `<span>${labelOf(r, i)}</span>`).join('')}</div>
+      <div class="xtitle">${xTitle}</div>
+    </div>`;
+  }
 
   function setBody(id, html) {
-    const card = document.getElementById(id);
-    if (!card) return null;
-    card.innerHTML = html;
-    return card;
+    const panel = document.getElementById(id);
+    if (!panel) return null;
+    panel.querySelectorAll(':scope > :not(h2)').forEach(el => el.remove());
+    panel.insertAdjacentHTML('beforeend', html);
+    return panel;
   }
 
-  // Same chart as sparkline(..., h=135, axes=True) in app.py
-  function drawSparkline(el, monthly, yTitle) {
-    const tick = { size: 11, color: css('--tick') };
-    const title = t => ({ text: t, font: { size: 11, color: css('--tick') }, standoff: 12 });
-    const embed = document.body.classList.contains('embed');
-    Plotly.react(el, [{
-      x: monthly.map(p => p.month), y: monthly.map(p => p.value),
-      type: 'scatter', mode: 'lines', fill: 'tozeroy',
-      line: { color: css('--teal'), width: 2 }, fillcolor: css('--fill'),
-      hovertemplate: '%{x|%b %Y}: %{y:,.0f}<extra></extra>',
-    }], {
-      ...(embed ? { autosize: true } : { height: 135 }),
-      margin: { l: 52, r: 10, t: 6, b: 42 }, showlegend: false,
-      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
-      font: { family: FONT, size: 10, color: css('--tick') },
-      hoverlabel: { bgcolor: 'white' },
-      xaxis: { showgrid: false, linecolor: css('--axis'), tickformat: '%b %y', nticks: 7, tickfont: tick,
-               title: title('Month'), automargin: true, fixedrange: true },
-      yaxis: { rangemode: 'tozero', gridcolor: css('--grid'), nticks: 4, zeroline: false, tickfont: tick,
-               title: title(yTitle), automargin: true, fixedrange: true },
-    }, { displayModeBar: false, responsive: true });
+  function renderActiveUsers(a) {
+    const months = a.monthly;
+    const thisMonth = months[months.length - 1];
+    const monthName = p => monthLong(p).split(' ')[0];
+    const bars = barsHtml(months, [{ key: 'users', color: '--accent' }],
+      r => monthLabel(r.period),
+      r => `${monthLong(r.period)}: ${fmt(r.users)} active users`,
+      'Active users', 'Month');
+    setBody('active-users', `
+      <div class="headline"><span class="num">${fmt(thisMonth.users)}</span>
+        <span class="label">active so far in ${monthName(thisMonth.period)}</span></div>
+      <div class="facts">
+        <div><strong>${fmt(a.all_time)}</strong>contributors all time</div>
+      </div>
+      <div class="chart" role="img" aria-label="Active users per month, last 12 months">${bars}</div>
+      <p class="note">Active means they logged at least one trip or sighting that month.</p>`);
   }
 
-  function renderKpi(id, label, block, yTitle, locations) {
-    const picker = locations && locations.regions && locations.regions.length
-      ? `<select class="loc" aria-label="Location"><option value="">Whole world</option>` +
-        locations.regions.map((r, i) => `<option value="${i}">${esc(r.name)}</option>`).join('') + '</select>'
-      : '';
-    const card = setBody(id,
-      `<div class="kpi-top"><div class="metric-label">${esc(label)}</div>${picker}</div>` +
-      `<div class="metric-value"></div><div class="delta-slot"></div>` +
-      `<div class="chart" role="img" aria-label="${esc(label)} per month"></div>`);
-    if (!card) return;
+  function renderSightings(s) {
+    const legend = GROUPS.map(g => {
+      const t = s.groups.find(x => x.group === g.key) || { animals: 0 };
+      return `<span style="--c: var(${g.color})">${g.label} <b>${fmt(t.animals)}</b></span>`;
+    }).join('');
+    const panel = setBody('sightings', `
+      <div class="bar-head">
+        <p class="totals"><strong>${fmt(s.total_animals)}</strong> animals counted across
+          <strong>${fmt(s.total_sightings)}</strong> sightings</p>
+        <div class="toggle" role="group" aria-label="Time range">
+          <button type="button" data-range="year" aria-pressed="true">By year</button>
+          <button type="button" data-range="month" aria-pressed="false">Last 12 months</button>
+        </div>
+      </div>
+      <div class="legend">${legend}</div>
+      <div class="chart" role="img"></div>
+      <p class="note"></p>`);
+    if (!panel) return;
+    const chart = panel.querySelector('.chart');
+    const note = panel.querySelector('.note');
 
-    function show(b) {
-      card.querySelector('.metric-value').textContent = fmt(b.value);
-      const d = b.delta;
-      card.querySelector('.delta-slot').innerHTML = d
-        ? `<div class="metric-delta ${d.up ? 'up' : 'down'}">${d.up ? '↑' : '↓'} ${esc(d.text)}</div>` : '';
-      drawSparkline(card.querySelector('.chart'), b.monthly || [], yTitle);
+    function draw(range) {
+      const byYear = range === 'year';
+      const rows = byYear ? s.by_year : s.by_month;
+      const every = byYear ? Math.ceil(rows.length / 12) : 1;   // keep labels readable
+      const label = (r, i) => {
+        if (!byYear) return monthLabel(r.period);
+        if (i % every !== 0 && i !== rows.length - 1) return '';
+        return rows.length > 6 ? '’' + r.period.slice(2) : r.period;
+      };
+      const title = (r, total) => `${byYear ? r.period : monthLong(r.period)}: ${fmt(total)} animals (` +
+        GROUPS.map(g => `${g.label} ${fmt(r[g.key])}`).join(', ') + ')';
+      chart.innerHTML = barsHtml(rows, GROUPS, label, title, 'Animals counted', byYear ? 'Year' : 'Month');
+      chart.setAttribute('aria-label', byYear ? 'Animals counted per year, by species group'
+                                              : 'Animals counted per month, last 12 months, by species group');
+      note.textContent = (byYear ? 'Per year. ' : 'Per month, last 12 months. ') +
+        'Whales, dolphins and porpoises, plus sightings logged as unknown. Marine debris is not included.';
+      panel.querySelectorAll('.toggle button').forEach(b =>
+        b.setAttribute('aria-pressed', String(b.dataset.range === range)));
     }
-    show(block);
-    const sel = card.querySelector('.loc');
-    if (sel) sel.addEventListener('change', () => {
-      if (sel.value === '') { show(block); return; }
-      const r = locations.regions[Number(sel.value)];
-      show({ value: r.value, delta: r.delta,
-             monthly: locations.months.map((m, i) => ({ month: m, value: r.monthly[i] || 0 })) });
-    });
+    panel.querySelectorAll('.toggle button').forEach(b =>
+      b.addEventListener('click', () => draw(b.dataset.range)));
+    draw('year');
   }
 
-  function renderContributors(rows) {
-    const body = rows.length
-      ? rows.map(r => `<tr><td class="rk">${r.rank}</td><td>${esc(r.boat)}</td><td class="num">${fmt(r.sightings)}</td></tr>`).join('')
-      : '<tr><td colspan="3">No sightings in the past year.</td></tr>';
-    setBody('contributors',
-      '<div class="card-title">Top 5 Contributors (Past Year)</div>' +
-      '<table class="ctab"><thead><tr><th class="rk">Rank</th><th>Boat name</th><th class="num">Sightings</th></tr></thead>' +
-      `<tbody>${body}</tbody></table>`);
+  function renderContributors(list) {
+    if (!list.length) { setBody('contributors', '<p class="status">No sightings yet.</p>'); return; }
+    const max = Math.max(...list.map(c => c.sightings), 1);
+    const esc = t => String(t).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    setBody('contributors', `<ol class="leaders">${list.map(c => `
+      <li>
+        <span class="who">${esc(c.name)}</span>
+        <span class="count">${fmt(c.sightings)} sightings</span>
+        <span class="meter"><i style="width:${(c.sightings / max * 100).toFixed(1)}%"></i></span>
+        <span class="sub">${fmt(c.animals)} animals, ${fmt(c.species)} species, ${fmt(c.trips)} trips</span>
+      </li>`).join('')}</ol>
+      <p class="note">Ranked by whale and dolphin sightings logged.</p>`);
   }
 
-  function showMessage(msg) {
-    VIEWS.forEach(v => setBody(v, `<p class="status">${esc(msg)}</p>`));
+  function showError(retrying) {
+    const msg = retrying ? 'The stats server is starting up. Trying again in a few seconds…'
+                         : 'Couldn’t load the stats. Reload the page to try again.';
+    VIEWS.forEach(v => setBody(v, `<p class="status">${msg}</p>`));
   }
 
   async function load(attempt = 1) {
-    let data;
     try {
-      data = window.__STATS__;                 // filled in by the server, so no extra request
+      let data = window.__STATS__;              // filled in by the server, so no extra request
       if (!data) {
         const res = await fetch('/api/stats.json', { cache: 'no-cache' });
         if (!res.ok) throw new Error(res.status);
         data = await res.json();
       }
+      renderActiveUsers(data.active_users);
+      renderSightings(data.sightings);
+      renderContributors(data.contributors);
+      const when = new Date(data.updated);
+      document.getElementById('updated').textContent =
+        'Last updated ' + when.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
     } catch (e) {
       // A free Render server can take up to a minute to wake up
-      if (attempt < 4) { showMessage('The stats server is starting up. Trying again in a few seconds…');
-                         setTimeout(() => load(attempt + 1), 15000); }
-      else showMessage('Couldn’t load the stats. Reload the page to try again.');
-      return;
-    }
-    const dash = data && data.dashboard;
-    if (!dash) { showMessage('These charts need a newer data snapshot. Run: python map_api.py --refresh-snapshot'); return; }
-    renderKpi('active-users', 'Active users', dash.active_users, 'Users');
-    renderKpi('sightings', 'Animals counted', dash.animals, 'Animals', dash.animals_by_region);
-    renderContributors(dash.contributors || []);
-    if (data.updated) {
-      document.getElementById('updated').textContent = 'Last updated ' +
-        new Date(data.updated).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+      if (attempt < 4) { showError(true); setTimeout(() => load(attempt + 1), 15000); }
+      else showError(false);
     }
   }
   load();
