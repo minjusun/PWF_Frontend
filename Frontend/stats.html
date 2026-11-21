@@ -118,7 +118,7 @@
   .sub { grid-column: 2 / 4; color: var(--muted); font-size: 13px; }
 
   /* Hover tooltip on bars (Active users) */
-  .tip { position: fixed; z-index: 10; pointer-events: none; white-space: nowrap;
+  .tip { position: fixed; z-index: 10; pointer-events: none; white-space: pre; line-height: 1.5;
          background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
          padding: 5px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.15);
          opacity: 0; transition: opacity .12s; }
@@ -292,9 +292,9 @@
         if (i % every !== 0 && i !== rows.length - 1) return '';
         return r.period;
       };
-      const title = (r, total) => `${byYear ? r.period : monthLong(r.period)}: ${fmt(total)} animals (` +
-        GROUPS.map(g => `${g.label} ${fmt(r[g.key])}`).join(', ') + ')';
-      chart.innerHTML = barsHtml(rows, GROUPS, label, title, 'Animals counted', byYear ? 'Year' : 'Month');
+      const title = (r, total) => `${byYear ? r.period : monthLong(r.period)}: ${fmt(total)} animals\n` +
+        GROUPS.map(g => `${g.label}: ${fmt(r[g.key] || 0)}`).join('\n');
+      chart.innerHTML = barsHtml(rows, GROUPS, label, title, 'Animals counted', byYear ? 'Year' : 'Month', true);
       chart.setAttribute('aria-label', byYear ? 'Animals counted per year, by species group'
                                               : 'Animals counted per month, last 12 months, by species group');
       note.textContent = (byYear ? 'Per year. ' : 'Per month, last 12 months. ') +
