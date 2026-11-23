@@ -334,21 +334,26 @@
     const res = await fetch('/api/points.geojson');
     if (!res.ok) throw new Error(res.status);
     const gj = await res.json();
+    // Names that differ only in capitals or spacing ("Ocean Defender" / "ocean  defender") count as one
+    // boat, shown with the spelling used most often.
     const boats = new Map();
     for (const f of gj.features || []) {
       const p = f.properties || {};
-      const boat = String(p.boat_name || '').trim();
+      const boat = String(p.boat_name || '').trim().replace(/\s+/g, ' ');
       if (!boat || !countsAsWhaleOrDolphin(p)) continue;
-      const b = boats.get(boat) || { name: boat, sightings: 0, animals: 0, species: new Set() };
+      const key = boat.toLowerCase();
+      const b = boats.get(key) || { spellings: new Map(), sightings: 0, animals: 0, species: new Set() };
+      b.spellings.set(boat, (b.spellings.get(boat) || 0) + 1);
       b.sightings += 1;
       b.animals += Number(p.animals_total) || 0;
       if (p.species_code) b.species.add(p.species_code);
-      boats.set(boat, b);
+      boats.set(key, b);
     }
+    const mostUsed = m => [...m.entries()].sort((a, b) => b[1] - a[1])[0][0];
     return [...boats.values()]
       .sort((a, b) => b.sightings - a.sightings || b.animals - a.animals)
       .slice(0, 5)
-      .map(b => ({ name: b.name, sightings: b.sightings, animals: b.animals, species: b.species.size }));
+      .map(b => ({ name: mostUsed(b.spellings), sightings: b.sightings, animals: b.animals, species: b.species.size }));
   }
 
   function renderContributors(list) {

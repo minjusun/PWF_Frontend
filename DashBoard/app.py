@@ -94,20 +94,20 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 [data-testid="stToolbar"], [data-testid="stToolbarActions"], [data-testid="stMainMenu"], #MainMenu,
 [data-testid="stAppDeployButton"] {display:none !important;}
 .brand-logo {height:42px; width:auto; display:block;}
-.brand-divider {width:1px; height:44px; background:rgba(255,255,255,0.35);}
+.brand-divider {width:1px; height:38px; background:rgba(255,255,255,0.35);}
 .brand-logo, .brand-divider {flex-shrink:0;}
 /* Whale & Dolphin Tracker logo, right next to the Pacific Whale Foundation logo */
 .brand-logo-right {height:42px; width:auto; display:block; flex-shrink:0;
                    position:relative; top:3px; left:0px;}
-.summary {color:#C9DAE7; font-size:1.5rem; line-height:1.4; white-space:nowrap; overflow:hidden;
+.summary {color:#C9DAE7; font-size:1.3rem; line-height:1.4; white-space:nowrap; overflow:hidden;
           text-overflow:ellipsis; min-width:0;}
 .summary b {color:#FFFFFF; font-weight:700;}
-.summary-dot {margin:0 14px; color:rgba(255,255,255,0.4);}
+.summary-dot {margin:0 12px; color:rgba(255,255,255,0.4);}
 /* "About" on the right end of the header line; hover (or tab to it) to see the story */
 .st-key-header [data-testid="stElementContainer"], .st-key-header [data-testid="stMarkdown"],
 .st-key-header [data-testid="stMarkdownContainer"] {overflow:visible !important;}
 .about {position:relative; margin-left:auto; margin-right:-30px; flex-shrink:0; padding:4px 2px; cursor:default;
-        color:#C9DAE7; font-size:1.65rem; font-weight:600; letter-spacing:0.02em; outline:none;}
+        color:#C9DAE7; font-size:1.4rem; font-weight:600; letter-spacing:0.02em; outline:none;}
 .about:hover, .about:focus-within {color:#FFFFFF;}
 .about-pop {position:absolute; right:0; top:calc(100% + 12px); width:380px; z-index:1000;
             background:#FFFFFF; color:#12303B; font-size:0.84rem; font-weight:400; line-height:1.55;
@@ -768,12 +768,18 @@ with kpi_row:
 
 # ── Left of map: top 5 contributors (red bars) + active users ────────────────
 def top_boats_past_year(n=5):
-    """Fixed table: the boats with the most sightings in the last 12 months (ignores every filter)."""
+    """Fixed table: the boats with the most sightings in the last 12 months (ignores every filter).
+    Boat names that differ only in capitals or spacing ("Ocean Defender" / "ocean  defender") are one
+    boat; the table shows the spelling used most often."""
     recent = s_all[s_all["ts"] >= now - pd.DateOffset(years=1)]
-    boats = recent["boat_name"].astype("string").str.strip()
-    recent = recent[boats.notna() & (boats != "")]
-    return (recent.assign(boat=boats).groupby("boat").size()
-            .sort_values(ascending=False).head(n))
+    boats = recent["boat_name"].astype("string").str.strip().str.replace(r"\s+", " ", regex=True)
+    keep = boats.notna() & (boats != "")
+    recent = recent[keep].assign(boat=boats[keep])
+    recent = recent.assign(_key=recent["boat"].str.casefold())
+    counts = recent.groupby("_key").size().sort_values(ascending=False).head(n)
+    shown = recent.groupby("_key")["boat"].agg(lambda x: x.value_counts().index[0])
+    counts.index = [shown[k] for k in counts.index]
+    return counts
 
 
 tb = top_boats_past_year()
