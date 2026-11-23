@@ -79,7 +79,7 @@
   .headline .label { color: var(--muted); }
   .facts { display: flex; gap: 28px; margin: 12px 0 16px; flex-wrap: wrap; }
   .facts div { color: var(--muted); font-size: 13px; }
-  .facts strong { display: block; color: var(--text); font-size: 18px; font-weight: 600; }
+  .facts strong { display: inline; color: var(--text); font-size: 18px; font-weight: 600; margin-right: 6px; }
   .chart { height: 170px; }
   #sightings .chart { height: 240px; }
 
@@ -256,7 +256,7 @@
       <div class="headline"><span class="num">${fmt(thisMonth.users)}</span>
         <span class="label">active so far in ${monthName(thisMonth.period)}</span></div>
       <div class="facts">
-        <div><strong>${fmt(a.all_time)}</strong>contributors all time</div>
+        <div><strong>${fmt(a.all_time)}</strong> contributors all time</div>
       </div>
       <div class="chart" role="img" aria-label="Active users per month, January to December ${year}">${bars}</div>
       <p class="note">Active means they logged at least one trip or sighting that month.</p>`);
