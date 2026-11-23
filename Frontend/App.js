@@ -460,23 +460,23 @@ function renderSpeciesCard(row) {
         : statusMain;
 
     const color = speciesColorMap[code] ?? GRAY_FALLBACK;
+    const shown = !code || activeSpeciesCodes.has(code);
+    const clickHint = shown ? 'Click to hide from the map' : 'Click to show on the map';
 
     const card = document.createElement('div');
-    card.className = 'info-card';
+    card.className = 'info-card ' + (shown ? 'active-filter' : 'is-hidden');
     card.style.setProperty('--species-color', color);
-    if (code && activeSpeciesCodes.has(code)) {
-        card.classList.add('active-filter');
-    }
 
     card.innerHTML = `
         <h4>
-            <span class="species-name" data-role="filter-trigger">
+            <span class="species-name" data-role="filter-trigger" title="${clickHint}">
+                <span class="species-check" role="checkbox" aria-checked="${shown}" aria-label="${clickHint}"></span>
                 <img class="species-color-dot" src="${code ? getSpeciesGlowDataUrl(code) : ''}" alt="">
                 ${name}
             </span>
             <span class="cli--arrow-menu expand-icon" data-role="expand-trigger"></span>
         </h4>
-        <p class="summary" data-role="filter-trigger">${summary}</p>
+        <p class="summary" data-role="filter-trigger" title="${clickHint}">${summary}</p>
         <div class="detail">
             ${imagePath ? `<div class="species-detail-image-wrap"><img class="species-detail-image" src="${imagePath}" alt="${name}" loading="lazy" onerror="console.error('Species image failed to load:', this.src)"></div>` : ''}
             <div class="detail-info-box">
@@ -583,7 +583,22 @@ function renderGroupedList(rows) {
     }
 }
 
+// The line under the search box: how to use the list, and how many species are on the map.
+function updateSpeciesHint() {
+    const hint = document.getElementById('speciesHint');
+    if (!hint) return;
+    const total = allSpeciesCodes.size;
+    const shown = activeSpeciesCodes.size;
+    if (!total || shown >= total) {
+        hint.innerHTML = 'Click a species to hide it from the map. Click it again to show it.';
+    } else {
+        hint.innerHTML = `Showing <strong>${shown} of ${total}</strong> species. ` +
+            'Click a species to hide or show it, or press <strong>Show all</strong>.';
+    }
+}
+
 function populateList() {
+    updateSpeciesHint();
     const input = document.getElementById('speciesSearch');
     const query = input ? input.value.trim().toLowerCase() : '';
 
@@ -744,10 +759,20 @@ function computeYearDayRange(year) {
 }
 
 async function loadPointsAndComputeDateRange() {
-    const res = await fetch(POINTS_URL);
-    if (!res.ok) {
+    // Right after the server starts, it needs a few minutes to read Supabase.
+    // Keep trying (every 15 s, for up to ~6 minutes) instead of failing straight away.
+    let res;
+    for (let attempt = 1; ; attempt++) {
+        res = await fetch(POINTS_URL);
+        if (res.ok) break;
         const msg = await res.text();
-        throw new Error(`Could not load sightings (${res.status}): ${msg}`);
+        const starting = (res.status === 502 || res.status === 503) && /still loading/i.test(msg);
+        if (!starting || attempt >= 24) {
+            throw new Error(`Could not load sightings (${res.status}): ${msg}`);
+        }
+        document.getElementById('selectedTime').textContent =
+            'The map server is starting up. Loading sightings…';
+        await new Promise(r => setTimeout(r, 15000));
     }
     pointsGeojson = await res.json();
 
@@ -1527,7 +1552,7 @@ async function onStyleLoad() {
             // Most likely map_api.py isn't running, or Supabase couldn't be reached.
             console.error(err);
             document.getElementById('selectedTime').textContent =
-                'Could not load sightings. Is map_api.py running? (see console)';
+                'Could not load sightings. Please reload the page in a few minutes.';
             return;
         }
 
