@@ -70,14 +70,16 @@
   body.embed .headline .num { font-size: inherit; }
   body.embed .facts { margin: clamp(6px, 2vmin, 12px) 0 clamp(8px, 3vmin, 16px); }
   body.embed .note { margin-top: 8px; font-size: 12px; }
-  body.embed ol.leaders { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: space-between; }
-  body.embed ol.leaders li { padding: clamp(5px, 1.6vmin, 11px) 0; }
+  body.embed ol.leaders { flex: 0 0 auto; display: flex; flex-direction: column; justify-content: flex-start; }
+  body.embed ol.leaders li { padding: 8px 0; }
   body.embed .status { flex: 1; }
 
   /* Active users */
   .headline { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
   .headline .num { font-size: inherit; line-height: inherit; color: var(--text); font-weight: 600; letter-spacing: 0; }
   .headline .label { color: var(--muted); }
+  .headline .also { margin-left: 28px; }            /* space between the two numbers */
+  .headline { margin-bottom: 14px; }
   .facts { display: flex; gap: 28px; margin: 12px 0 16px; flex-wrap: wrap; }
   .facts div { color: var(--text); font-size: 15px; }
   .facts strong { display: inline; color: var(--text); font-size: inherit; font-weight: 600; margin-right: 4px; }
@@ -110,7 +112,7 @@
 
   /* Contributors */
   ol.leaders { list-style: none; margin: 0; padding: 0; counter-reset: rank; }
-  ol.leaders li { counter-increment: rank; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 4px 12px; padding: 11px 0; border-top: 1px solid var(--line); }
+  ol.leaders li { counter-increment: rank; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 3px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
   ol.leaders li:first-child { border-top: 0; padding-top: 2px; }
   ol.leaders li::before { content: counter(rank); font-family: "Open Sans", "Helvetica Neue", Arial, sans-serif; font-weight: 600; font-size: 15px; line-height: 1; color: var(--text); grid-row: span 2; }
   .who { font-weight: 600; overflow-wrap: anywhere; }
@@ -256,10 +258,8 @@
       'Active users', 'Month', true);
     setBody('active-users', `
       <div class="headline"><span class="num">${fmt(thisMonth.users)}</span>
-        <span class="label">active so far in ${monthName(thisMonth.period)}</span></div>
-      <div class="facts">
-        <div><strong>${fmt(a.all_time)}</strong> contributors all time</div>
-      </div>
+        <span class="label">active so far in ${monthName(thisMonth.period)}</span>
+        <span class="also"><span class="num">${fmt(a.all_time)}</span> contributors all time</span></div>
       <div class="chart" role="img" aria-label="Active users per month, January to December ${year}">${bars}</div>
       <p class="note">Active means they logged at least one trip or sighting that month.</p>`);
   }
