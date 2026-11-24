@@ -137,10 +137,12 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
                                border: 1px solid rgba(11,37,64,0.14) !important; border-radius: 8px !important;}
 [data-baseweb="select"] > div:hover {background: rgba(42,120,174,0.2) !important;}
 .st-key-kpi_row {margin-bottom: 22px;}
-/* "Tips" line under the header: how to use the charts */
-.tips {background:rgba(255,255,255,0.65); border:1px solid rgba(255,255,255,0.8); border-radius:10px;
-       padding:8px 14px; margin:-16px 0 18px; font-size:0.84rem; line-height:1.45; color:#12303B;}
-.tips b {color:#0E4D64;}
+/* "Tips" box in the side panel, under Reset / Search */
+.tips {background:#F2F7F8; border:1px solid #DCE7EA; border-radius:8px; padding:10px 12px 8px;
+       margin-top:18px; font-size:0.8rem; line-height:1.45; color:#12303B;}
+.tips-title {font-weight:600; color:#0E4D64; margin:0 0 4px;}
+.tips ul {margin:0; padding-left:16px;}
+.tips li {margin:0 0 4px;}
 /* Swimming whale: starts parked top-right; the script below moves it and bounces it off the edges */
 .whale-swim {position: fixed; top: 120px; right: 28px; z-index: 50; cursor: pointer; will-change: left, top;}
 .whale-bob {animation: whale-bob 4s ease-in-out infinite;}
@@ -582,6 +584,11 @@ with st.container(key="sidepanel"):
     b1, b2 = st.columns(2)
     b1.button("Reset", key="sb_reset", on_click=reset_search, use_container_width=True)
     b2.button("Search", key="sb_search", on_click=apply_search, use_container_width=True)
+    st.markdown("<div class='tips'><div class='tips-title'>Tips</div><ul>"
+                "<li>Hover over any chart for exact numbers.</li>"
+                "<li>On most charts, click and drag to zoom in. Double-click to zoom back out.</li>"
+                "<li>Click a region on the map to see its stats.</li>"
+                "<li>Click any card to hear a fact from Humphrey.</li></ul></div>", unsafe_allow_html=True)
 
 A = ss.applied
 
@@ -638,10 +645,6 @@ follow = bool(sp_filter)
 s_period, t_period = d.slice_data(s, t, start, end, tracks_follow_sightings=follow)
 region_counts = s_period["region"].value_counts()
 
-st.markdown("<div class='tips'><b>Tips:</b> Hover over any chart for exact numbers. "
-            "On most charts, click and drag to zoom in, and double-click to zoom back out. "
-            "Click a region on the map to see its stats. Click any card to hear a fact from Humphrey.</div>",
-            unsafe_allow_html=True)
 kpi_row = st.container(key="kpi_row")
 left, center, right = st.columns([3, 4, 3])
 
