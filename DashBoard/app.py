@@ -643,7 +643,8 @@ with center:
         st.markdown(f"<div class='card-title'>{html.escape(region_sel or 'Whole world')}</div>",
                     unsafe_allow_html=True)
 
-        m = folium.Map(location=[20, -100], zoom_start=2, tiles=None, world_copy_jump=True, min_zoom=2,
+        # Starts on the whole world; zoom 1 is needed so the full map fits inside the card
+        m = folium.Map(location=[15, 0], zoom_start=1, tiles=None, world_copy_jump=True, min_zoom=1,
                        control_scale=True)
         folium.TileLayer(
             tiles="https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}",
@@ -669,6 +670,8 @@ with center:
         if region_sel in shape_by_name:
             x0, y0, x1, y1 = shape_by_name[region_sel]["bbox"]
             m.fit_bounds([[y0, x0], [y1, x1]], padding=(20, 20))
+        else:                                   # Whole world: fit every continent in the card
+            m.fit_bounds([[-58, -180], [78, 180]])
 
         map_key = f"map_{region_sel or GLOBAL}"
         map_state = st_folium(m, key=map_key, height=400, use_container_width=True,
