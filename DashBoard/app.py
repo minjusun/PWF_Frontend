@@ -790,8 +790,12 @@ with left:
                     f"<tbody>{rows}</tbody></table>", unsafe_allow_html=True)
 
     with card("kpi_users"):
-        st.metric("Active users", f"{cur['users']:,}", delta("users"))
-        st.plotly_chart(sparkline(ms["users"], h=135, axes=True, x="Month", y="Users"),
+        st.metric("Total users", f"{cur['users']:,}", delta("users"),
+                  help="Everyone who logged at least one trip or sighting in the selected period. "
+                       "The chart shows how many were active in each month.")
+        st.markdown(f"<div class='card-sub'>{html.escape(window)} · chart: active users each month</div>",
+                    unsafe_allow_html=True)
+        st.plotly_chart(sparkline(ms["users"], h=135, axes=True, x="Month", y="Active users"),
                         config=PLOT_CFG, theme=None, key="spark_users")
 
 
@@ -1106,7 +1110,8 @@ st.markdown(download_section_html(), unsafe_allow_html=True)
 # ── Humphrey's facts: what he says when you click each card ────────────────────
 place = "around the world" if is_global else f"in {short_name}"
 Humphrey = {
-    "kpi_users": f"{cur['users']:,} people logged trips or sightings {place} this period!",
+    "kpi_users": (f"{cur['users']:,} people logged trips or sightings {place} in total for this period. "
+                  "The chart shows how many were active each month."),
     "kpi_animals": f"{cur['animals']:,} animals counted {place}!",
     "map": ("This map shows regions where sightings were collected on our Whale & Dolphin Tracker app."),
     "activity": ("Each bar is how many different species were seen that year. The dark bar is this year "
