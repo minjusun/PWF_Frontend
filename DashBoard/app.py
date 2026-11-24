@@ -212,7 +212,7 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .xtab .bar i {display:block; height:100%; background:#1B7F8C;}
 /* Top 5 contributors and Top 5 species: same height */
 .st-key-card_contrib, .st-key-card_species_list {min-height:258px;}
-/* Top 5 contributors (past year): rank + boat name + sightings */
+/* Top 5 contributors (last 12 months): rank + username + sightings */
 .ctab td.rk, .ctab th.rk {width:42px; color:#5B7680;}
 .ctab {width:100%; border-collapse:collapse; font-size:0.86rem; color:#12303B;}
 .ctab th {text-align:left; font-weight:500; color:#5B7680; padding:6px 8px 8px; border-bottom:1px solid #E3E9EC;}
@@ -770,28 +770,22 @@ with kpi_row:
 
 
 # ── Left of map: top 5 contributors (red bars) + active users ────────────────
-def top_boats_past_year(n=5):
-    """Fixed table: the boats with the most sightings in the last 12 months (ignores every filter).
-    Boat names that differ only in capitals or spacing ("Ocean Defender" / "ocean  defender") are one
-    boat; the table shows the spelling used most often."""
+def top_contributors_last_12_months(n=5):
+    """Fixed table: the people (app usernames) with the most sightings in the last 12 months,
+    counted back from today, so it never resets on January 1. Ignores every filter."""
     recent = s_all[s_all["ts"] >= now - pd.DateOffset(years=1)]
-    boats = recent["boat_name"].astype("string").str.strip().str.replace(r"\s+", " ", regex=True)
-    keep = boats.notna() & (boats != "")
-    recent = recent[keep].assign(boat=boats[keep])
-    recent = recent.assign(_key=recent["boat"].str.casefold())
-    counts = recent.groupby("_key").size().sort_values(ascending=False).head(n)
-    shown = recent.groupby("_key")["boat"].agg(lambda x: x.value_counts().index[0])
-    counts.index = [shown[k] for k in counts.index]
-    return counts
+    who_ = recent["contributor"].astype("string").str.strip()
+    recent = recent[who_.notna() & (who_ != "")].assign(_who=who_)
+    return recent.groupby("_who").size().sort_values(ascending=False).head(n)
 
 
-tb = top_boats_past_year()
+tb = top_contributors_last_12_months()
 with left:
-    with card("contrib", "Top 5 Contributors (Past Year)"):
+    with card("contrib", "Top 5 Contributors (Last 12 Months)"):
         rows = "".join(f"<tr><td class='rk'>{i}</td><td>{html.escape(str(b))}</td><td class='num'>{int(n):,}</td></tr>"
                        for i, (b, n) in enumerate(tb.items(), 1)) or \
-            "<tr><td colspan='3'>No sightings in the past year.</td></tr>"
-        st.markdown("<table class='ctab'><thead><tr><th class='rk'>Rank</th><th>Boat name</th>"
+            "<tr><td colspan='3'>No sightings in the last 12 months.</td></tr>"
+        st.markdown("<table class='ctab'><thead><tr><th class='rk'>Rank</th><th>Contributor</th>"
                     "<th class='num'>Sightings</th></tr></thead>"
                     f"<tbody>{rows}</tbody></table>", unsafe_allow_html=True)
 
@@ -1122,9 +1116,9 @@ Humphrey = {
     "shift": "This shows the busiest month for the species you picked, year by year.",
     "calf": "Calves are baby whales and dolphins! This shows when the most are spotted.",
 }
-Humphrey["contrib"] = (f"These boats logged the most sightings this past year. {tb.index[0]} leads with "
+Humphrey["contrib"] = (f"These are our top spotters over the last 12 months. {tb.index[0]} leads with "
                        f"{int(tb.iloc[0]):,} sightings!" if len(tb)
-                       else "No boats have logged sightings this past year yet.")
+                       else "No one has logged sightings in the last 12 months yet.")
 if len(sp_tab):
     Humphrey["species_list"] = (f"These are the 5 most-spotted species {place} in the Whale & Dolphin Tracker app. "
                               f"The most common is the {sp_tab.iloc[0]['Species'].lower()}.")

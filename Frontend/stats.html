@@ -167,7 +167,7 @@
     </section>
 
     <section class="panel" id="contributors" aria-labelledby="tc-title">
-      <h2 id="tc-title">Top 5 contributors worldwide</h2>
+      <h2 id="tc-title">Top 5 contributors (all time)</h2>
       <div class="status">Loading…</div>
     </section>
 
@@ -320,42 +320,6 @@
     draw('year');
   }
 
-  // Same species groups as the stats server: whales, dolphins & porpoises, and unknown; no debris, seals or sharks
-  function countsAsWhaleOrDolphin(p) {
-    const code = String(p.species_code || '').trim().toUpperCase();
-    const name = String(p.species_name || '').trim().toLowerCase();
-    if (code === 'OTH' || name === 'unknown' || name === 'unidentified') return true;
-    if (name.includes('debris') || name.includes('shark') || name.includes('seal')) return false;
-    return name.includes('whale') || name.includes('dolphin') || name.includes('porpoise');
-  }
-
-  // Top 5 boats from /api/points.geojson (the map's sightings, which include boat_name)
-  async function boatLeaders() {
-    const res = await fetch('/api/points.geojson');
-    if (!res.ok) throw new Error(res.status);
-    const gj = await res.json();
-    // Names that differ only in capitals or spacing ("Ocean Defender" / "ocean  defender") count as one
-    // boat, shown with the spelling used most often.
-    const boats = new Map();
-    for (const f of gj.features || []) {
-      const p = f.properties || {};
-      const boat = String(p.boat_name || '').trim().replace(/\s+/g, ' ');
-      if (!boat || !countsAsWhaleOrDolphin(p)) continue;
-      const key = boat.toLowerCase();
-      const b = boats.get(key) || { spellings: new Map(), sightings: 0, animals: 0, species: new Set() };
-      b.spellings.set(boat, (b.spellings.get(boat) || 0) + 1);
-      b.sightings += 1;
-      b.animals += Number(p.animals_total) || 0;
-      if (p.species_code) b.species.add(p.species_code);
-      boats.set(key, b);
-    }
-    const mostUsed = m => [...m.entries()].sort((a, b) => b[1] - a[1])[0][0];
-    return [...boats.values()]
-      .sort((a, b) => b.sightings - a.sightings || b.animals - a.animals)
-      .slice(0, 5)
-      .map(b => ({ name: mostUsed(b.spellings), sightings: b.sightings, animals: b.animals, species: b.species.size }));
-  }
-
   function renderContributors(list) {
     if (!list.length) { setBody('contributors', '<p class="status">No sightings yet.</p>'); return; }
     const max = Math.max(...list.map(c => c.sightings), 1);
@@ -365,9 +329,9 @@
         <span class="who">${esc(c.name)}</span>
         <span class="count">${fmt(c.sightings)} sightings</span>
         <span class="meter"><i style="width:${(c.sightings / max * 100).toFixed(1)}%"></i></span>
-        <span class="sub">${fmt(c.animals)} animals, ${fmt(c.species)} species</span>
+        <span class="sub">${fmt(c.animals)} animals, ${fmt(c.species)} species, ${fmt(c.trips)} trips</span>
       </li>`).join('')}</ol>
-      <p class="note">Boats ranked by whale and dolphin sightings logged.</p>`);
+      <p class="note">Ranked by whale and dolphin sightings logged, all time.</p>`);
   }
 
   function showError(retrying) {
@@ -386,10 +350,7 @@
       }
       renderActiveUsers(data.active_users);
       renderSightings(data.sightings);
-      if (document.getElementById('contributors')) {
-        boatLeaders().then(renderContributors).catch(() =>
-          setBody('contributors', '<p class="status">Couldn’t load the boats. Reload the page to try again.</p>'));
-      }
+      renderContributors(data.contributors);
       const when = new Date(data.updated);
       document.getElementById('updated').textContent =
         'Last updated ' + when.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
