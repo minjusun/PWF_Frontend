@@ -137,6 +137,10 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
                                border: 1px solid rgba(11,37,64,0.14) !important; border-radius: 8px !important;}
 [data-baseweb="select"] > div:hover {background: rgba(42,120,174,0.2) !important;}
 .st-key-kpi_row {margin-bottom: 22px;}
+/* "Tips" line under the header: how to use the charts */
+.tips {background:rgba(255,255,255,0.65); border:1px solid rgba(255,255,255,0.8); border-radius:10px;
+       padding:8px 14px; margin:-16px 0 18px; font-size:0.84rem; line-height:1.45; color:#12303B;}
+.tips b {color:#0E4D64;}
 /* Swimming whale: starts parked top-right; the script below moves it and bounces it off the edges */
 .whale-swim {position: fixed; top: 120px; right: 28px; z-index: 50; cursor: pointer; will-change: left, top;}
 .whale-bob {animation: whale-bob 4s ease-in-out infinite;}
@@ -190,7 +194,7 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .sp-tag {color:#8AA0A8; font-size:0.74rem; line-height:1.4; margin:0 0 8px;}
 .sp-tag b {font-weight:500; color:#6B848D;}
 /* The four charts in the two rows under the quote: same card height, so each row lines up */
-.st-key-card_activity, .st-key-card_season, .st-key-card_curve, .st-key-card_group {min-height:320px;}
+.st-key-card_activity, .st-key-card_species_list, .st-key-card_curve, .st-key-card_group {min-height:320px;}
 /* The three cards under the arrow: same height */
 .st-key-card_hot, .st-key-card_shift, .st-key-card_calf {min-height:316px;}
 /* Top 5 Species table: plain HTML (always sorted by sightings, no menus), scrolls sideways if narrow */
@@ -210,8 +214,8 @@ h1 {font-size:1.35rem !important; padding:0 !important;}
 .xtab .bar {display:inline-block; vertical-align:middle; width:60px; height:6px; border-radius:3px;
             background:#E3EEF0; margin-right:8px; overflow:hidden;}
 .xtab .bar i {display:block; height:100%; background:#1B7F8C;}
-/* Top 5 contributors and Top 5 species: same height */
-.st-key-card_contrib, .st-key-card_species_list {min-height:258px;}
+/* Top 5 contributors and Sightings by month (either side of the map): same height */
+.st-key-card_contrib, .st-key-card_season {min-height:258px;}
 /* Top 5 contributors (last 12 months): rank + username + sightings */
 .ctab td.rk, .ctab th.rk {width:42px; color:#5B7680;}
 .ctab {width:100%; border-collapse:collapse; font-size:0.86rem; color:#12303B;}
@@ -634,6 +638,10 @@ follow = bool(sp_filter)
 s_period, t_period = d.slice_data(s, t, start, end, tracks_follow_sightings=follow)
 region_counts = s_period["region"].value_counts()
 
+st.markdown("<div class='tips'><b>Tips:</b> Hover over any chart for exact numbers. "
+            "On most charts, click and drag to zoom in, and double-click to zoom back out. "
+            "Click a region on the map to see its stats. Click any card to hear a fact from Humphrey.</div>",
+            unsafe_allow_html=True)
 kpi_row = st.container(key="kpi_row")
 left, center, right = st.columns([3, 4, 3])
 
@@ -838,23 +846,6 @@ def species_table_html(df):
             f"<tbody>{''.join(rows)}</tbody></table></div>")
 
 
-# ── Right of map: species spotted (red bars) + image placeholder ─────────────
-with right:
-    with card("species_list", "Top 5 Species Spotted"):
-        sp_all = d.species_table(s_scope, start, end)      # every species, most-sighted first
-        sp_tab = sp_all.head(5)
-        st.markdown(species_table_html(sp_tab), unsafe_allow_html=True)
-
-    st.markdown(f"{side_image_html()}"
-                "<div class='permit'>Research activities authorized under NMFS/MMPA ESA permit # 21321</div>",
-                unsafe_allow_html=True)
-
-
-# QUOTE 2!!!!--------------------------------------------------------------------
-st.markdown("<div class='quote quote-on-blue quote-spaced'><p style='font-size: 28px;'><i>&ldquo;By working together, we can track whales and dolphins throughout their ocean home!&rdquo;</i></p></div>",
-            unsafe_allow_html=True)
-
-# ── Row line 1: activity over time + best time to see ────────────────────────
 sp_rank = s_hist["species_name"].value_counts()
 # The species charts follow the header Species filter (no dropdown of their own).
 # Picking every species in the filter counts the same as picking none.
@@ -871,7 +862,7 @@ else:
     sp_names = (", ".join(sp_filter) if len(sp_filter) <= 3
                 else f"{', '.join(sp_filter[:3])} and {len(sp_filter) - 3} more")
 sp_tag = f"<div class='sp-tag'>Species: <b>{html.escape(sp_names)}</b></div>"
-# Seasonal charts (Best time to see, Busiest month, Calves) only make sense for one place:
+# Seasonal charts (Sightings by month, Month with the most sightings, Calves) only make sense for one place:
 # use the picked region, or for Whole world the region with the most sightings.
 if is_global:
     _rc = s_hist["region"].value_counts().drop(R.OPEN_OCEAN, errors="ignore")
@@ -881,30 +872,70 @@ else:
 season_short = season_region.split(",")[0] if season_region else GLOBAL
 season_note = " · region with the most sightings" if is_global and season_region else ""
 s_season = s_hist[s_hist["region"] == season_region] if season_region else s_hist
-
-c_activity, c_best = st.columns([5, 5])
 data_start, data_end = s_all["ts"].min(), now
 
+# ── Right of map: sightings by month + photo ─────────────────────────────────
+with right:
+    if sp_rank.empty:
+        st.info("No sightings here yet. Pick another region or widen the filters.")
+    else:
+        # Called "Sightings by month", not "Best time to see": in places with few sightings the months
+        # with most sightings may just be when someone happened to be out on the water.
+        with card("season", f"Sightings by month ({season_short})",
+                  scope_text("Sightings in a typical month", region=False) + season_note):
+            st.markdown(sp_tag, unsafe_allow_html=True)
+            sd = s_season                    # sidebar Species filter + the seasonal region
+            tm = d.typical_month(sd, data_start, data_end)
+            top3 = tm.nlargest(3, "Average")
+            top3 = top3[top3["Average"] > 0]
+            if len(top3):
+                months_txt = ", ".join(top3.sort_values("month")["Month"].tolist()[:-1])
+                months_txt = (f"{months_txt} and {top3.sort_values('month')['Month'].iloc[-1]}"
+                              if len(top3) > 1 else top3["Month"].iloc[0])
+                few = len(sd) < 50
+                st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>Most {html.escape(sp_plural.lower())} "
+                            f"sightings here were reported in <b>{months_txt}</b>."
+                            + (f" Only {len(sd):,} sightings so far, so this may not show the real season."
+                               if few else "") + "</div>", unsafe_allow_html=True)
+            tm["colour"] = np.where(tm["month"].isin(top3["month"]), "Most sightings", "Other months")
+            fig = px.bar(tm, x="Month", y="Average", color="colour",
+                         color_discrete_map={"Most sightings": DEEP, "Other months": MIST},
+                         category_orders={"Month": d.MONTHS})
+            fig.update_traces(hovertemplate="%{x}: about %{y:.0f} sightings in a typical year<extra></extra>")
+            st.plotly_chart(style(fig, h=180, x="Month", y="Sightings (typical month)"),
+                            config=PLOT_CFG, theme=None, key="season_best")
+
+    st.markdown(f"{side_image_html()}"
+                "<div class='permit'>Research activities authorized under NMFS/MMPA ESA permit # 21321</div>",
+                unsafe_allow_html=True)
+
+
+# QUOTE 2!!!!--------------------------------------------------------------------
+st.markdown("<div class='quote quote-on-blue quote-spaced'><p style='font-size: 28px;'><i>&ldquo;By working together, we can track whales and dolphins throughout their ocean home!&rdquo;</i></p></div>",
+            unsafe_allow_html=True)
+
+# ── Row line 1: sightings over time + top 5 species ──────────────────────────
+
+c_activity, c_best = st.columns([5, 5])
+
 with c_activity:
-    act_mode = ss.get("act_what") or "Trips & sightings"     # known before the card header is drawn
+    act_mode = ss.get("act_view") or "Sightings"              # known before the card header is drawn
     if act_mode == "Species":
         act_sub = scope_text("Species seen each year")
         if sp_filter:
             act_sub += " (all species)"
     else:
-        act_sub = scope_text("Trips and sightings per quarter")
-    act_title = "Species count per year" if act_mode == "Species" else "Trips & sightings over time"
+        act_sub = scope_text("Sightings per quarter")
+    act_title = "Species count per year" if act_mode == "Species" else "Sightings over time"
     with card("activity", act_title, act_sub):
-        what = st.segmented_control("Show", ["Trips & sightings", "Species"], default="Trips & sightings",
-                                    key="act_what", label_visibility="collapsed") or "Trips & sightings"
+        what = st.segmented_control("Show", ["Sightings", "Species"], default="Sightings",
+                                    key="act_view", label_visibility="collapsed") or "Sightings"
         fig = go.Figure()
-        if what == "Trips & sightings":
+        if what == "Sightings":
             ot = d.over_time(s_hist, t_hist, "Q")          # always grouped by quarter
-            fig.add_bar(x=ot["period"], y=ot["Trips"], name="Trips", marker_color=MIST)
-            fig.add_scatter(x=ot["period"], y=ot["Sightings"], name="Sightings", mode="lines",
-                            line=dict(color=DEEP, width=2))
-            fig.update_layout(barmode="overlay", hovermode="x unified")
-            x_title, y_title = "Quarter", "Trips & sightings"
+            fig.add_bar(x=ot["period"], y=ot["Sightings"], name="Sightings", marker_color=TEAL,
+                        hovertemplate="%{x|%b %Y}: %{y:,} sightings<extra></extra>")
+            x_title, y_title = "Quarter", "Sightings"
             species_note = None
         else:
             # Number of different species seen each year; this year highlighted vs. the other years' average
@@ -940,34 +971,15 @@ with c_activity:
         if species_note:
             st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>{species_note}</div>",
                         unsafe_allow_html=True)
-        st.plotly_chart(style(fig, h=207 if not species_note else 185, legend=True, x=x_title, y=y_title),
+        st.plotly_chart(style(fig, h=207 if not species_note else 185, legend=(what == "Species"),
+                              x=x_title, y=y_title),
                         config=PLOT_CFG, theme=None, key="activity_chart")
 
 with c_best:
-    if sp_rank.empty:
-        st.info("No sightings here yet. Pick another region or widen the filters.")
-    else:
-        with card("season", f"Best time to see ({season_short})",
-                  scope_text("Sightings in a typical month", region=False) + season_note):
-            st.markdown(sp_tag, unsafe_allow_html=True)
-            sd = s_season                    # header Species filter + the seasonal region
-            tm = d.typical_month(sd, data_start, data_end)
-            top3 = tm.nlargest(3, "Average")
-            top3 = top3[top3["Average"] > 0]
-            if len(top3):
-                months_txt = ", ".join(top3.sort_values("month")["Month"].tolist()[:-1])
-                months_txt = (f"{months_txt} and {top3.sort_values('month')['Month'].iloc[-1]}"
-                              if len(top3) > 1 else top3["Month"].iloc[0])
-                st.markdown(f"<div class='card-sub' style='font-size:0.82rem'>{html.escape(sp_plural)} "
-                            f"are seen most in <b>{months_txt}</b>.</div>", unsafe_allow_html=True)
-            tm["colour"] = np.where(tm["month"].isin(top3["month"]), "Best months", "Other months")
-            fig = px.bar(tm, x="Month", y="Average", color="colour",
-                         color_discrete_map={"Best months": DEEP, "Other months": MIST},
-                         category_orders={"Month": d.MONTHS})
-            fig.update_traces(hovertemplate="%{x}: about %{y:.0f} sightings in a typical year<extra></extra>")
-            st.plotly_chart(style(fig, h=212, x="Month", y="Sightings (typical month)"),
-                            config=PLOT_CFG, theme=None, key="season_best")
-
+    with card("species_list", "Top 5 Species Spotted", scope_text("Most-sighted species", period=True)):
+        sp_all = d.species_table(s_scope, start, end)      # every species, most-sighted first
+        sp_tab = sp_all.head(5)
+        st.markdown(species_table_html(sp_tab), unsafe_allow_html=True)
 # ── Row line 2: this year vs past + typical group size ───────────────────────
 c_year, c_group = st.columns([5, 5])
 if sp_rank.empty:
@@ -1066,7 +1078,7 @@ if ss.get("show_more"):
     c_hot, c_peak, c_calf = st.columns([3.2, 2.4, 2.4])
     with c_hot:
         if is_global:
-            with card("hot", "Busiest region by year", scope_text("All years")):
+            with card("hot", "Region with the most sightings each year", scope_text("All years")):
                 st.markdown(static_table(d.busiest_region_by_year(s_hist), hide=("Share of year",), height=249),
                             unsafe_allow_html=True)
         else:
@@ -1075,13 +1087,14 @@ if ss.get("show_more"):
                                          height=249), unsafe_allow_html=True)
 
     with c_peak:
-        with card("shift", f"Busiest month each year ({season_short})",
+        with card("shift", f"Month with the most sightings each year ({season_short})",
                   scope_text("All years", region=False) + season_note):
             st.markdown(sp_tag, unsafe_allow_html=True)
             if sp_rank.empty:
                 st.caption("No sightings here yet.")
             else:
-                st.markdown(static_table(d.peak_month_by_year(sd, data_start, data_end),
+                st.markdown(static_table(d.peak_month_by_year(sd, data_start, data_end)
+                                         .rename(columns={"Busiest month": "Month with most sightings"}),
                                          hide=("Sightings that year",), height=230), unsafe_allow_html=True)
 
     with c_calf:
@@ -1116,9 +1129,9 @@ Humphrey = {
     "map": ("This map shows regions where sightings were collected on our Whale & Dolphin Tracker app."),
     "activity": ("Each bar is how many different species were seen that year. The dark bar is this year "
                  "so far, and the dotted line is the average of the other years." if what == "Species" else
-                 "Bars are trips, the line is sightings. Hover over any point to see the exact count."),
+                 "Each bar is the number of sightings in a quarter. Hover over a bar to see the exact count."),
     "hot": "Each row is one year and the place with the most sightings that year.",
-    "shift": "This shows the busiest month for the species you picked, year by year.",
+    "shift": "This shows the month with the most sightings for the species you picked, year by year.",
     "calf": "Calves are baby whales and dolphins! This shows when the most are spotted.",
 }
 Humphrey["contrib"] = (f"These are our top spotters over the last 12 months. {tb.index[0]} leads with "
@@ -1130,8 +1143,8 @@ if len(sp_tab):
 else:
     Humphrey["species_list"] = f"No species spotted {place} yet for this period."
 if not sp_rank.empty:
-    best_txt = f" They show up most in {months_txt}." if len(top3) else ""
-    Humphrey["season"] = f"Want to see {sp_plural.lower()} in {season_short}?{best_txt}"
+    best_txt = f" Most sightings were in {months_txt}." if len(top3) else ""
+    Humphrey["season"] = f"This shows when {sp_plural.lower()} have been reported in {season_short}.{best_txt}"
     Humphrey["curve"] = (f"This is {str(ss.get('curve_region') or 'the world').split(',')[0]}. "
                          f"The dark line is {ss.get('curve_year', now.year)}, the dotted line is the average of "
                        f"all other years. Above the dots means a busier month than usual!")
@@ -1156,7 +1169,7 @@ try:
         pk = d.peak_month_by_year(sd, data_start, data_end)
         if len(pk):
             p0 = pk.iloc[0]
-            Humphrey["shift"] = (f"In {str(p0['Year']).split(' ')[0]}, {sp_plural.lower()} in {season_short} were busiest in {p0['Busiest month']}, "
+            Humphrey["shift"] = (f"In {str(p0['Year']).split(' ')[0]}, {sp_plural.lower()} in {season_short} had the most sightings in {p0['Busiest month']}, "
                                f"with {int(p0['Sightings that month']):,} sightings that month.")
     if s_season["animals_calf"].sum() > 0:
         tcv = d.typical_calves(s_season, s_all["ts"].min(), now)
